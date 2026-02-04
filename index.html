@@ -15,7 +15,7 @@ import {
   signInWithCustomToken,
   onAuthStateChanged 
 } from 'firebase/auth';
-import { Trash2, Plus, TrendingUp, TrendingDown, Wallet, CheckCircle2 } from 'lucide-react';
+import { Trash2, Plus, TrendingUp, TrendingDown, Wallet, CheckCircle2, AlertCircle } from 'lucide-react';
 
 // --- Firebase 配置 ---
 const firebaseConfig = {
@@ -37,6 +37,7 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState(null); // 'success' | null
+  const [authError, setAuthError] = useState(null);
   
   const [desc, setDesc] = useState('');
   const [customDesc, setCustomDesc] = useState('');
@@ -53,7 +54,7 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // 修正 Auth 邏輯：優先嘗試權杖，若失敗或不存在則使用匿名登入
+        // 修正 Auth 邏輯：優先嘗試權杖，若失敗或不存在則強制降級到匿名登入 (RULE 3)
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           try {
             await signInWithCustomToken(auth, __initial_auth_token);
@@ -66,6 +67,7 @@ export default function App() {
         }
       } catch (error) {
         console.error("Firebase Auth Final Error:", error);
+        setAuthError("身份驗證失敗，請重新載入頁面。");
       }
     };
 
@@ -73,7 +75,10 @@ export default function App() {
     
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (!currentUser) setLoading(true);
+      // 如果 Auth 完成但沒有 user，也要關閉 loading 顯示錯誤
+      if (currentUser) {
+        setAuthError(null);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -82,12 +87,17 @@ export default function App() {
     // 確保使用者已登入後才發起 Firestore 監聽 (RULE 3)
     if (!user) return;
 
+    setLoading(true);
     const collectionPath = collection(db, 'artifacts', appId, 'users', user.uid, 'transactions');
     const q = query(collectionPath);
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const sortedDocs = docs.sort((a, b) => new Date(b.date) - new Date(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
+      // 根據日期排序，日期相同則根據創建時間排序
+      const sortedDocs = docs.sort((a, b) => {
+        const dateDiff = new Date(b.date) - new Date(a.date);
+        return dateDiff !== 0 ? dateDiff : (b.createdAt || 0) - (a.createdAt || 0);
+      });
       setTransactions(sortedDocs);
       setLoading(false);
     }, (error) => {
@@ -156,7 +166,21 @@ export default function App() {
     return acc;
   }, { income: 0, expense: 0 });
 
-  if (!user) {
+  // 錯誤狀態處理
+  if (authError) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 font-sans">
+        <div className="text-center p-8 bg-white rounded-3xl shadow-xl border border-rose-100 max-w-sm">
+          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
+          <p className="text-slate-800 font-bold mb-2 text-xl">連線發生問題</p>
+          <p className="text-slate-500 text-sm">{authError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 初始加載狀態
+  if (!user && loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50 font-sans">
         <div className="text-center">
@@ -168,29 +192,32 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans transition-all duration-500">
+      <div className="max-w-6xl mx-auto">
         <header className="mb-8 text-center">
-          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight text-center">小生意雲端記錄系統</h1>
+          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">小生意雲端記錄系統</h1>
           <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
-            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 uppercase tracking-tighter">
+            <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-widest">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
               Firebase: 已連線
             </span>
-            <div className="w-full md:w-auto text-[10px] text-slate-400 font-mono mt-1 md:mt-0">
-              UID: {user.uid}
+            <div className="w-full md:w-auto text-[10px] text-slate-400 font-mono mt-1 md:mt-0 bg-white px-2 py-1 rounded-md border border-slate-100">
+              UID: {user?.uid || 'N/A'}
             </div>
           </div>
         </header>
 
+        {/* 統計數值區 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <StatCard label="目前結餘" value={stats.income - stats.expense} color="text-blue-600" icon={<Wallet className="w-5 h-5" />} />
           <StatCard label="總收入" value={stats.income} color="text-emerald-600" icon={<TrendingUp className="w-5 h-5" />} />
           <StatCard label="總支出" value={stats.expense} color="text-rose-600" icon={<TrendingDown className="w-5 h-5" />} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1">
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 sticky top-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* 左側表單 */}
+          <div className="lg:col-span-4">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 lg:sticky lg:top-8">
               <h2 className="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2">
                 <Plus className="w-5 h-5 text-blue-500" /> 新增交易
               </h2>
@@ -201,7 +228,7 @@ export default function App() {
                     value={desc} 
                     onChange={(e) => handleProductChange(e.target.value)}
                     required
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none cursor-pointer"
                   >
                     <option value="" disabled>請選擇產品</option>
                     <option value="毛巾">毛巾 (單價 $25)</option>
@@ -243,23 +270,24 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="p-4 bg-slate-900 rounded-2xl flex justify-between items-center">
+                <div className="p-4 bg-slate-900 rounded-2xl flex justify-between items-center transition-all">
                   <span className="text-xs font-medium text-slate-400">總計金額</span>
                   <span className="text-xl font-bold text-white tracking-tight">${(parseFloat(price || 0) * quantity).toFixed(2)}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => setType('income')}
-                    className={`p-3 rounded-xl border text-sm font-bold transition-all ${type === 'income' ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-100' : 'bg-white text-slate-400 border-slate-200'}`}>收入 (+)</button>
+                    className={`p-3 rounded-xl border text-sm font-bold transition-all ${type === 'income' ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-100' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}>收入 (+)</button>
                   <button type="button" onClick={() => setType('expense')}
-                    className={`p-3 rounded-xl border text-sm font-bold transition-all ${type === 'expense' ? 'bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-100' : 'bg-white text-slate-400 border-slate-200'}`}>支出 (-)</button>
+                    className={`p-3 rounded-xl border text-sm font-bold transition-all ${type === 'expense' ? 'bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-100' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}>支出 (-)</button>
                 </div>
 
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
 
                 <button 
                   type="submit" 
+                  disabled={!user}
                   className={`w-full py-4 rounded-xl font-black text-white transition-all shadow-xl flex items-center justify-center gap-2 ${saveStatus === 'success' ? 'bg-emerald-600' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200 active:scale-[0.98]'}`}
                 >
                   {saveStatus === 'success' ? (
@@ -273,20 +301,36 @@ export default function App() {
             </div>
           </div>
 
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-              <div className="p-6 border-b border-slate-50 flex justify-between items-center">
+          {/* 右側表格 */}
+          <div className="lg:col-span-8">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[400px] flex flex-col">
+              <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-white">
                 <h2 className="text-xl font-bold text-slate-800">歷史交易清單</h2>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  共 {transactions.length} 筆
+                </div>
               </div>
 
               {loading ? (
-                <div className="p-20 text-center text-slate-300 font-medium tracking-wide">數據讀取中...</div>
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-300 mx-auto mb-3"></div>
+                    <p className="text-slate-400 text-sm font-medium">讀取雲端數據...</p>
+                  </div>
+                </div>
               ) : transactions.length === 0 ? (
-                <div className="p-20 text-center text-slate-400 font-medium tracking-wide">目前沒有任何記錄</div>
+                <div className="flex-1 flex items-center justify-center p-20 text-center">
+                  <div>
+                    <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Plus className="w-8 h-8 text-slate-200" />
+                    </div>
+                    <p className="text-slate-400 font-medium tracking-wide">目前尚未有任何記錄</p>
+                  </div>
+                </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto flex-1">
                   <table className="w-full text-left">
-                    <thead className="bg-slate-50/50">
+                    <thead className="bg-slate-50/50 sticky top-0 backdrop-blur-md">
                       <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                         <th className="px-6 py-4">日期</th>
                         <th className="px-6 py-4">項目</th>
@@ -297,7 +341,7 @@ export default function App() {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {transactions.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50/30 transition-colors group">
+                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
                           <td className="px-6 py-4 text-sm text-slate-500 font-medium">{item.date}</td>
                           <td className="px-6 py-4 text-sm font-bold text-slate-800">{item.desc}</td>
                           <td className="px-6 py-4 text-sm text-center text-slate-500 font-bold">{item.quantity}</td>
@@ -307,7 +351,7 @@ export default function App() {
                           <td className="px-6 py-4 text-center">
                             <button 
                               onClick={() => handleDelete(item.id)} 
-                              className="p-2 text-slate-200 hover:text-rose-500 transition-all active:scale-90"
+                              className="p-2 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90"
                               title="刪除"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -329,7 +373,7 @@ export default function App() {
 
 function StatCard({ label, value, color, icon }) {
   return (
-    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-lg hover:shadow-slate-200/50 transition-all group">
+    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-lg hover:shadow-slate-200/50 transition-all group cursor-default">
       <div className={`p-4 rounded-2xl transition-all group-hover:scale-110 group-hover:rotate-3 ${color.replace('text', 'bg').replace('600', '50')} ${color}`}>
         {icon}
       </div>
