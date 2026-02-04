@@ -20,18 +20,29 @@
         <!-- Header -->
         <header class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <div>
-                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">小生意交易系統</h1>
-                <p id="authStatus" class="text-slate-500 text-sm italic">正在連接伺服器...</p>
-            </div>
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
-                <div class="bg-indigo-100 p-3 rounded-xl">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight text-center md:text-left">小生意交易系統</h1>
+                <div id="userInfo" class="flex items-center space-x-2 mt-2 justify-center md:justify-start">
+                    <span id="authStatus" class="text-slate-500 text-sm italic">正在初始化...</span>
                 </div>
-                <div>
-                    <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">今日累計營收</p>
-                    <p id="totalBalance" class="text-2xl font-bold text-slate-800">$ 0</p>
+            </div>
+            
+            <div class="flex flex-col space-y-4">
+                <!-- Login Button -->
+                <button id="googleLoginBtn" class="flex items-center justify-center space-x-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm hover:bg-slate-50 transition-all text-sm font-medium">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-4 h-4" alt="Google">
+                    <span id="loginBtnText">Google 登入</span>
+                </button>
+
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                    <div class="bg-indigo-100 p-3 rounded-xl">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">今日累計營收</p>
+                        <p id="totalBalance" class="text-2xl font-bold text-slate-800">$ 0</p>
+                    </div>
                 </div>
             </div>
         </header>
@@ -46,18 +57,16 @@
                     </h2>
                     
                     <div class="space-y-5">
-                        <!-- 交易日期 -->
                         <div>
                             <label class="block text-sm font-semibold text-slate-600 mb-1">交易日期</label>
                             <input type="date" id="transactionDate" 
-                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all text-slate-800">
+                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                         </div>
 
-                        <!-- 商品選擇 -->
                         <div>
                             <label class="block text-sm font-semibold text-slate-600 mb-1">交易項目</label>
                             <select id="itemSelect" onchange="handleItemChange()"
-                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all cursor-pointer text-slate-800">
+                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer">
                                 <option value="" disabled selected>請選擇項目...</option>
                                 <option value="毛巾" data-price="25">毛巾 ($25)</option>
                                 <option value="鎖匙扣" data-price="20">鎖匙扣 ($20)</option>
@@ -65,23 +74,22 @@
                             </select>
                         </div>
 
-                        <!-- 隱藏的「其他」輸入框 -->
                         <div id="otherItemDiv" class="hidden fade-in">
                             <label class="block text-sm font-semibold text-slate-600 mb-1">自定義項目名稱</label>
                             <input type="text" id="itemNameCustom" placeholder="例如: 貼紙" 
-                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all">
+                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                         </div>
                         
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-semibold text-slate-600 mb-1">數量</label>
                                 <input type="number" id="quantity" value="1" min="1" oninput="calculateTotal()"
-                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all">
+                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                             </div>
                             <div>
-                                <label class="block text-sm font-semibold text-slate-600 mb-1">總金額 (HKD)</label>
+                                <label class="block text-sm font-semibold text-slate-600 mb-1">總額 (HKD)</label>
                                 <input type="number" id="amount" placeholder="0.00" 
-                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-bold text-indigo-600">
+                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-indigo-600">
                             </div>
                         </div>
 
@@ -102,7 +110,6 @@
                     </div>
                     
                     <div id="transactionList" class="divide-y divide-slate-100 min-h-[400px]">
-                        <!-- 動態內容 -->
                         <div class="flex items-center justify-center h-64">
                             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                         </div>
@@ -115,10 +122,9 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Firebase 設定
         const firebaseConfig = {
             apiKey: "AIzaSyD76WGGR6QwCMr-qXXPNfCxefLZWK5KI-c",
             authDomain: "transactions-2d7ca.firebaseapp.com",
@@ -131,65 +137,81 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
         const transCol = collection(db, "transactions");
 
         let currentUser = null;
+        let unsubscribeList = null;
 
-        // 登入邏輯：自動匿名登入
-        signInAnonymously(auth).catch((error) => {
-            console.error("登入出錯:", error);
-            document.getElementById('authStatus').innerText = "連線失敗，請重新載入";
-        });
-
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                document.getElementById('authStatus').innerHTML = `<span class="text-emerald-500">● 系統連線成功</span>`;
-                startListening();
+        // 登入按鈕處理
+        const loginBtn = document.getElementById('googleLoginBtn');
+        loginBtn.addEventListener('click', async () => {
+            if (currentUser && !currentUser.isAnonymous) {
+                if(confirm("確定要登出嗎？")) await signOut(auth);
+            } else {
+                try {
+                    await signInWithPopup(auth, provider);
+                } catch (error) {
+                    console.error("登入失敗:", error);
+                    alert("登入失敗: " + error.message);
+                }
             }
         });
 
-        // 初始化日期為今天
-        window.addEventListener('DOMContentLoaded', () => {
-            const dateInput = document.getElementById('transactionDate');
-            const today = new Date().toISOString().split('T')[0];
-            dateInput.value = today;
+        // 監聽驗證狀態
+        onAuthStateChanged(auth, (user) => {
+            const statusEl = document.getElementById('authStatus');
+            const btnText = document.getElementById('loginBtnText');
+            
+            if (user) {
+                currentUser = user;
+                if (user.isAnonymous) {
+                    statusEl.innerHTML = `<span class="text-amber-500">● 訪客模式 (未登入)</span>`;
+                    btnText.innerText = "Google 登入";
+                } else {
+                    statusEl.innerHTML = `<span class="text-emerald-500">● 已登入: ${user.displayName || '使用者'}</span>`;
+                    btnText.innerText = "登出帳號";
+                }
+                startListening();
+            } else {
+                // 如果完全沒登入，嘗試匿名登入以維持運作
+                signInAnonymously(auth);
+            }
         });
 
-        // 計算總金額邏輯
+        // 初始化日期
+        window.addEventListener('DOMContentLoaded', () => {
+            const dateInput = document.getElementById('transactionDate');
+            dateInput.value = new Date().toISOString().split('T')[0];
+        });
+
         window.calculateTotal = () => {
             const select = document.getElementById('itemSelect');
             const qtyInput = document.getElementById('quantity');
             const amountInput = document.getElementById('amount');
             const selectedOption = select.options[select.selectedIndex];
-            
             if (select.value && select.value !== 'other') {
                 const price = Number(selectedOption.getAttribute('data-price'));
-                const qty = Number(qtyInput.value) || 1;
-                amountInput.value = price * qty;
+                amountInput.value = price * (Number(qtyInput.value) || 1);
             }
         };
 
-        // 下拉選單連動邏輯
         window.handleItemChange = () => {
             const select = document.getElementById('itemSelect');
             const otherDiv = document.getElementById('otherItemDiv');
-            const qtyInput = document.getElementById('quantity');
-            
             if (select.value === 'other') {
                 otherDiv.classList.remove('hidden');
                 document.getElementById('amount').value = '';
-                qtyInput.value = 1;
             } else {
                 otherDiv.classList.add('hidden');
                 window.calculateTotal();
             }
         };
 
-        // 新增交易
+        // 新增交易 (含超時防護)
         window.addTransaction = async () => {
-            if (!currentUser) return alert("系統尚未連線成功，請稍候");
-
+            if (!currentUser) return alert("連線中，請稍候...");
+            
             const dateInput = document.getElementById('transactionDate');
             const select = document.getElementById('itemSelect');
             const customName = document.getElementById('itemNameCustom');
@@ -197,30 +219,32 @@
             const amountEl = document.getElementById('amount');
             const btn = document.getElementById('submitBtn');
 
-            let finalName = "";
-            if (select.value === 'other') {
-                finalName = customName.value;
-            } else if (select.value) {
-                finalName = select.value;
-            }
-
-            if (!finalName || !amountEl.value || !dateInput.value) {
-                return alert("請完整填寫日期、項目與金額");
-            }
+            const name = select.value === 'other' ? customName.value : select.value;
+            if (!name || !amountEl.value) return alert("請填寫完整資訊");
 
             btn.disabled = true;
             btn.innerHTML = `<span class="animate-pulse">存檔中...</span>`;
 
+            // 設定超時防護：如果 8 秒沒反應就強制恢復按鈕
+            const timeout = setTimeout(() => {
+                if (btn.disabled) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<span>確認存檔</span>`;
+                    alert("存檔超時，請檢查網路或 Firebase 規則設定");
+                }
+            }, 8000);
+
             try {
                 await addDoc(transCol, {
-                    name: finalName,
+                    name,
                     date: dateInput.value,
                     quantity: Number(qtyInput.value) || 1,
                     amount: Number(amountEl.value),
-                    uid: currentUser.uid, // 紀錄是誰存的
+                    uid: currentUser.uid,
                     createdAt: serverTimestamp()
                 });
-                // 重置表單
+                clearTimeout(timeout);
+                // 重置
                 select.selectedIndex = 0;
                 customName.value = '';
                 qtyInput.value = 1;
@@ -228,16 +252,15 @@
                 document.getElementById('otherItemDiv').classList.add('hidden');
             } catch (e) {
                 console.error("Save error:", e);
-                alert("儲存失敗，可能是權限問題");
+                alert("儲存失敗，請檢查資料庫規則");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = `<span>確認存檔</span>`;
             }
         };
 
-        // 刪除交易
         window.deleteTransaction = async (id, name) => {
-            if(confirm(`確定要刪除「${name}」這筆交易嗎？`)) {
+            if(confirm(`確定要刪除「${name}」嗎？`)) {
                 try {
                     await deleteDoc(doc(db, "transactions", id));
                 } catch (e) {
@@ -246,10 +269,11 @@
             }
         };
 
-        // 監聽即時數據
         function startListening() {
+            if (unsubscribeList) unsubscribeList();
+
             const q = query(transCol, orderBy("date", "desc"), orderBy("createdAt", "desc"));
-            onSnapshot(q, (snapshot) => {
+            unsubscribeList = onSnapshot(q, (snapshot) => {
                 const listEl = document.getElementById('transactionList');
                 const balanceEl = document.getElementById('totalBalance');
                 const countEl = document.getElementById('recordCount');
@@ -258,11 +282,7 @@
                 let total = 0;
                 
                 if (snapshot.empty) {
-                    listEl.innerHTML = `
-                        <div class="flex flex-col items-center justify-center h-64 text-slate-400">
-                            <svg class="w-12 h-12 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                            <p>尚無任何交易紀錄</p>
-                        </div>`;
+                    listEl.innerHTML = `<div class="p-20 text-center text-slate-400">目前沒有紀錄</div>`;
                     balanceEl.innerText = `$ 0`;
                     countEl.innerText = `0 筆紀錄`;
                     return;
@@ -270,9 +290,7 @@
 
                 snapshot.forEach((doc) => {
                     const data = doc.data();
-                    const id = doc.id;
                     total += data.amount;
-
                     html += `
                         <div class="group flex items-center justify-between p-5 hover:bg-slate-50 transition-all border-l-4 border-transparent hover:border-indigo-500">
                             <div class="flex items-center space-x-4">
@@ -280,29 +298,21 @@
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
                                 </div>
                                 <div>
-                                    <p class="font-bold text-slate-800">${data.name} <span class="text-indigo-400 font-medium ml-1">x ${data.quantity || 1}</span></p>
+                                    <p class="font-bold text-slate-800">${data.name} <span class="text-indigo-400 font-medium">x ${data.quantity}</span></p>
                                     <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">📅 ${data.date}</p>
                                 </div>
                             </div>
                             <div class="flex items-center space-x-4">
                                 <span class="font-black text-lg text-slate-900">$${data.amount.toLocaleString()}</span>
-                                <button onclick="deleteTransaction('${id}', '${data.name}')" 
-                                    class="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
+                                <button onclick="deleteTransaction('${doc.id}', '${data.name}')" class="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 </button>
                             </div>
-                        </div>
-                    `;
+                        </div>`;
                 });
-
                 listEl.innerHTML = html;
                 balanceEl.innerText = `$ ${total.toLocaleString()}`;
                 countEl.innerText = `${snapshot.size} 筆紀錄`;
-            }, (error) => {
-                console.error("監聽出錯:", error);
-                listEl.innerHTML = `<div class="p-5 text-rose-500">數據讀取失敗，請檢查權限</div>`;
             });
         }
     </script>
