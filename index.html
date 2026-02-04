@@ -21,7 +21,7 @@
         <header class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <div>
                 <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">小生意交易系統</h1>
-                <p class="text-slate-500">專為小型經營設計的即時記帳工具</p>
+                <p id="authStatus" class="text-slate-500 text-sm italic">正在連接伺服器...</p>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
                 <div class="bg-indigo-100 p-3 rounded-xl">
@@ -115,8 +115,10 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+        // Firebase 設定
         const firebaseConfig = {
             apiKey: "AIzaSyD76WGGR6QwCMr-qXXPNfCxefLZWK5KI-c",
             authDomain: "transactions-2d7ca.firebaseapp.com",
@@ -127,8 +129,25 @@
         };
 
         const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
         const db = getFirestore(app);
         const transCol = collection(db, "transactions");
+
+        let currentUser = null;
+
+        // 登入邏輯：自動匿名登入
+        signInAnonymously(auth).catch((error) => {
+            console.error("登入出錯:", error);
+            document.getElementById('authStatus').innerText = "連線失敗，請重新載入";
+        });
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('authStatus').innerHTML = `<span class="text-emerald-500">● 系統連線成功</span>`;
+                startListening();
+            }
+        });
 
         // 初始化日期為今天
         window.addEventListener('DOMContentLoaded', () => {
@@ -169,6 +188,8 @@
 
         // 新增交易
         window.addTransaction = async () => {
+            if (!currentUser) return alert("系統尚未連線成功，請稍候");
+
             const dateInput = document.getElementById('transactionDate');
             const select = document.getElementById('itemSelect');
             const customName = document.getElementById('itemNameCustom');
@@ -196,17 +217,18 @@
                     date: dateInput.value,
                     quantity: Number(qtyInput.value) || 1,
                     amount: Number(amountEl.value),
+                    uid: currentUser.uid, // 紀錄是誰存的
                     createdAt: serverTimestamp()
                 });
-                // 重置表單 (日期保持為今天)
+                // 重置表單
                 select.selectedIndex = 0;
                 customName.value = '';
                 qtyInput.value = 1;
                 amountEl.value = '';
                 document.getElementById('otherItemDiv').classList.add('hidden');
             } catch (e) {
-                console.error(e);
-                alert("儲存失敗");
+                console.error("Save error:", e);
+                alert("儲存失敗，可能是權限問題");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = `<span>確認存檔</span>`;
@@ -224,62 +246,65 @@
             }
         };
 
-        // 監聽即時數據 (依日期排序，同日依建立時間排序)
-        const q = query(transCol, orderBy("date", "desc"), orderBy("createdAt", "desc"));
-        onSnapshot(q, (snapshot) => {
-            const listEl = document.getElementById('transactionList');
-            const balanceEl = document.getElementById('totalBalance');
-            const countEl = document.getElementById('recordCount');
-            
-            let html = '';
-            let total = 0;
-            
-            if (snapshot.empty) {
-                listEl.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-64 text-slate-400">
-                        <svg class="w-12 h-12 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                        <p>尚無任何交易紀錄</p>
-                    </div>`;
-                balanceEl.innerText = `$ 0`;
-                countEl.innerText = `0 筆紀錄`;
-                return;
-            }
+        // 監聽即時數據
+        function startListening() {
+            const q = query(transCol, orderBy("date", "desc"), orderBy("createdAt", "desc"));
+            onSnapshot(q, (snapshot) => {
+                const listEl = document.getElementById('transactionList');
+                const balanceEl = document.getElementById('totalBalance');
+                const countEl = document.getElementById('recordCount');
+                
+                let html = '';
+                let total = 0;
+                
+                if (snapshot.empty) {
+                    listEl.innerHTML = `
+                        <div class="flex flex-col items-center justify-center h-64 text-slate-400">
+                            <svg class="w-12 h-12 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                            <p>尚無任何交易紀錄</p>
+                        </div>`;
+                    balanceEl.innerText = `$ 0`;
+                    countEl.innerText = `0 筆紀錄`;
+                    return;
+                }
 
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                const id = doc.id;
-                total += data.amount;
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const id = doc.id;
+                    total += data.amount;
 
-                html += `
-                    <div class="group flex items-center justify-between p-5 hover:bg-slate-50 transition-all border-l-4 border-transparent hover:border-indigo-500">
-                        <div class="flex items-center space-x-4">
-                            <div class="bg-indigo-50 text-indigo-600 p-2 rounded-xl">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                    html += `
+                        <div class="group flex items-center justify-between p-5 hover:bg-slate-50 transition-all border-l-4 border-transparent hover:border-indigo-500">
+                            <div class="flex items-center space-x-4">
+                                <div class="bg-indigo-50 text-indigo-600 p-2 rounded-xl">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-slate-800">${data.name} <span class="text-indigo-400 font-medium ml-1">x ${data.quantity || 1}</span></p>
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">📅 ${data.date}</p>
+                                </div>
                             </div>
-                            <div>
-                                <p class="font-bold text-slate-800">${data.name} <span class="text-indigo-400 font-medium ml-1">x ${data.quantity || 1}</span></p>
-                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                                    📅 ${data.date}
-                                </p>
+                            <div class="flex items-center space-x-4">
+                                <span class="font-black text-lg text-slate-900">$${data.amount.toLocaleString()}</span>
+                                <button onclick="deleteTransaction('${id}', '${data.name}')" 
+                                    class="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
                             </div>
                         </div>
-                        <div class="flex items-center space-x-4">
-                            <span class="font-black text-lg text-slate-900">$${data.amount.toLocaleString()}</span>
-                            <button onclick="deleteTransaction('${id}', '${data.name}')" 
-                                class="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 focus:opacity-100">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                `;
+                    `;
+                });
+
+                listEl.innerHTML = html;
+                balanceEl.innerText = `$ ${total.toLocaleString()}`;
+                countEl.innerText = `${snapshot.size} 筆紀錄`;
+            }, (error) => {
+                console.error("監聽出錯:", error);
+                listEl.innerHTML = `<div class="p-5 text-rose-500">數據讀取失敗，請檢查權限</div>`;
             });
-
-            listEl.innerHTML = html;
-            balanceEl.innerText = `$ ${total.toLocaleString()}`;
-            countEl.innerText = `${snapshot.size} 筆紀錄`;
-        });
+        }
     </script>
 </body>
 </html>
