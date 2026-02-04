@@ -9,19 +9,31 @@
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; }
         .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
+        .tab-active { border-bottom: 2px solid #4f46e5; color: #4f46e5; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div class="max-w-4xl mx-auto p-4 md:p-8">
         <!-- Header -->
-        <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-gray-800">交易管理系統</h1>
-                <p id="authStatus" class="text-sm text-gray-500 mt-1 italic">正在連線至雲端...</p>
+                <div id="authStatusContainer" class="mt-1 flex flex-col">
+                    <p id="authStatus" class="text-sm text-gray-500 italic">正在連線至雲端...</p>
+                    <!-- 網域診斷提示 -->
+                    <div id="domainHelper" class="hidden mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800">
+                        <p class="font-bold mb-1">⚠️ 登入失敗：網域未授權</p>
+                        <p>請將下方網域複製並加入至 Firebase -> Authentication -> Settings -> Authorized domains:</p>
+                        <div class="flex items-center gap-2 mt-1">
+                            <code id="hostDisplay" class="bg-white px-2 py-0.5 border border-amber-300 rounded"></code>
+                            <button onclick="copyHost()" class="text-indigo-600 font-bold underline">複製網域</button>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="flex items-center gap-4">
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <p class="text-xs text-gray-400 font-bold">今日總營收</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">今日累計營收</p>
                     <p id="totalDisplay" class="text-2xl font-bold text-indigo-600">$ 0</p>
                 </div>
                 <button id="loginBtn" class="bg-white border border-gray-200 px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2">
@@ -32,58 +44,60 @@
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Form -->
+            <!-- Form Side -->
             <div class="lg:col-span-1">
                 <div class="glass p-6 rounded-3xl shadow-lg border border-white sticky top-4">
                     <h2 class="text-lg font-bold mb-6 flex items-center gap-2">
                         <span class="w-2 h-6 bg-indigo-500 rounded-full"></span>
-                        新增交易
+                        新增交易紀錄
                     </h2>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 mb-1">日期</label>
+                            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">日期</label>
                             <input type="date" id="dateInput" class="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-400">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 mb-1">項目</label>
-                            <select id="itemSelect" onchange="updatePrice()" class="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-400">
-                                <option value="" disabled selected>選擇項目...</option>
+                            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">交易項目</label>
+                            <select id="itemSelect" onchange="updatePrice()" class="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                                <option value="" disabled selected>請選擇項目...</option>
                                 <option value="毛巾" data-price="25">毛巾 ($25)</option>
                                 <option value="鎖匙扣" data-price="20">鎖匙扣 ($20)</option>
-                                <option value="custom">自定義項目</option>
+                                <option value="custom">自定義項目 (手動輸入)</option>
                             </select>
                         </div>
-                        <div id="customItemBox" class="hidden">
-                            <label class="block text-xs font-bold text-gray-500 mb-1">自定義名稱</label>
-                            <input type="text" id="customName" placeholder="輸入名稱" class="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-400">
+                        <div id="customItemBox" class="hidden fade-in">
+                            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">自定義名稱</label>
+                            <input type="text" id="customName" placeholder="例如: 貼紙" class="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-400">
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 mb-1">數量</label>
+                                <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">數量</label>
                                 <input type="number" id="qtyInput" value="1" min="1" oninput="updatePrice()" class="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-400">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 mb-1">金額 (HKD)</label>
+                                <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">總金額 (HKD)</label>
                                 <input type="number" id="amountInput" class="w-full p-3 bg-white border-2 border-indigo-100 rounded-xl outline-none text-indigo-600 font-bold">
                             </div>
                         </div>
-                        <button id="saveBtn" onclick="saveRecord()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all shadow-md active:scale-95 flex justify-center items-center">
+                        <button id="saveBtn" onclick="saveRecord()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all shadow-md active:scale-95 flex justify-center items-center gap-2">
                             <span>確認存檔</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- List -->
+            <!-- List Side -->
             <div class="lg:col-span-2">
                 <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
                     <div class="p-5 border-b flex justify-between items-center bg-gray-50/50">
-                        <h3 class="font-bold text-gray-700">歷史明細</h3>
-                        <span id="countTag" class="text-xs bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full font-bold">0 筆</span>
+                        <h3 class="font-bold text-gray-700">歷史交易明細</h3>
+                        <span id="countTag" class="text-xs bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full font-bold">0 筆紀錄</span>
                     </div>
                     <div id="listContainer" class="divide-y divide-gray-50 min-h-[400px]">
-                        <!-- Loading or Items here -->
-                        <div class="p-20 text-center text-gray-400">正在加載雲端數據...</div>
+                        <div class="p-20 text-center text-gray-400 flex flex-col items-center">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mb-4"></div>
+                            正在同步雲端數據...
+                        </div>
                     </div>
                 </div>
             </div>
@@ -104,48 +118,73 @@
             appId: "1:83055519403:web:3c44154f221783392c79ee"
         };
 
-        // Initialize
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
         
         let currentUser = null;
+        let unsubscribe = null;
 
-        // Date Initializer
+        // 頁面初始化
         document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+        document.getElementById('hostDisplay').innerText = window.location.hostname;
 
-        // Auth Listener
+        // 複製網域功能
+        window.copyHost = () => {
+            const host = window.location.hostname;
+            const tempInput = document.createElement("input");
+            document.body.appendChild(tempInput);
+            tempInput.value = host;
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            alert("網域已複製: " + host + "\n請貼回 Firebase 授權網域設定中。");
+        };
+
+        // 驗證狀態監聽
         onAuthStateChanged(auth, (user) => {
             const status = document.getElementById('authStatus');
             const loginTxt = document.getElementById('loginBtnText');
             
             if (user) {
                 currentUser = user;
-                status.innerHTML = user.isAnonymous ? 
-                    '<span class="text-orange-500">● 訪客模式 (未登入)</span>' : 
-                    `<span class="text-green-500">● 已登入: ${user.displayName}</span>`;
-                loginTxt.innerText = user.isAnonymous ? "Google 登入" : "登出";
+                if (user.isAnonymous) {
+                    status.innerHTML = '<span class="text-amber-500">● 訪客模式 (網域未授權 Google 登入)</span>';
+                    loginTxt.innerText = "Google 登入";
+                } else {
+                    status.innerHTML = `<span class="text-emerald-500 font-bold">● 已登入: ${user.displayName}</span>`;
+                    loginTxt.innerText = "登出帳號";
+                    document.getElementById('domainHelper').classList.add('hidden');
+                }
                 loadData();
             } else {
-                signInAnonymously(auth);
+                // 如果未登入，強制執行匿名登入以確保功能可用
+                signInAnonymously(auth).catch(err => {
+                    status.innerHTML = '<span class="text-rose-500">● 連線失敗，請檢查網路或設定</span>';
+                });
             }
         });
 
-        // Google Login / Logout
+        // 登入按鈕
         document.getElementById('loginBtn').onclick = async () => {
             if (currentUser && !currentUser.isAnonymous) {
-                if(confirm("確定登出？")) await signOut(auth);
+                if(confirm("確定登出帳號？")) await signOut(auth);
             } else {
                 try {
                     await signInWithPopup(auth, provider);
                 } catch (e) {
-                    alert("登入失敗，可能網域未授權: " + e.message);
+                    console.error("Auth Error:", e);
+                    if (e.code === 'auth/unauthorized-domain') {
+                        document.getElementById('domainHelper').classList.remove('hidden');
+                    } else {
+                        alert("登入失敗: " + e.message);
+                    }
                 }
             }
         };
 
-        // UI Logic
+        // UI 連動：自動計算金額
         window.updatePrice = () => {
             const select = document.getElementById('itemSelect');
             const qty = document.getElementById('qtyInput').value;
@@ -161,8 +200,10 @@
             }
         };
 
-        // CRUD Operations
+        // 雲端操作：存檔
         window.saveRecord = async () => {
+            if (!currentUser) return alert("系統連線中，請稍候...");
+            
             const btn = document.getElementById('saveBtn');
             const select = document.getElementById('itemSelect');
             const amount = document.getElementById('amountInput').value;
@@ -172,10 +213,11 @@
 
             const name = select.value === 'custom' ? customName : select.value;
 
-            if (!name || !amount) return alert("請完整填寫項目與金額");
+            if (!name || !amount) return alert("請填寫完整的項目與金額資訊");
 
             btn.disabled = true;
-            btn.innerHTML = `<span class="animate-spin mr-2 border-2 border-white border-t-transparent rounded-full w-4 h-4"></span> 儲存中...`;
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = `<span class="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span> 正在儲存...`;
 
             try {
                 await addDoc(collection(db, "transactions"), {
@@ -187,29 +229,38 @@
                     createdAt: serverTimestamp()
                 });
                 
-                // Reset form
+                // 成功後重置表單
                 document.getElementById('amountInput').value = '';
                 document.getElementById('customName').value = '';
                 select.selectedIndex = 0;
+                document.getElementById('customItemBox').classList.add('hidden');
             } catch (e) {
-                alert("存檔失敗，請確認 Firestore 規則已設定。");
-                console.error(e);
+                console.error("Save error:", e);
+                alert("存檔失敗！\n原因：您的 Firestore 規則可能未開啟。\n請將 Rules 改為 allow read, write: if request.auth != null;");
             } finally {
                 btn.disabled = false;
-                btn.innerText = "確認存檔";
+                btn.innerHTML = originalContent;
             }
         };
 
-        window.deleteItem = async (id) => {
-            if(confirm("確定刪除此筆紀錄？")) {
-                await deleteDoc(doc(db, "transactions", id));
+        // 雲端操作：刪除
+        window.deleteItem = async (id, name) => {
+            if(confirm(`確定刪除「${name}」的這筆紀錄？`)) {
+                try {
+                    await deleteDoc(doc(db, "transactions", id));
+                } catch (e) {
+                    alert("刪除失敗");
+                }
             }
         };
 
+        // 即時讀取數據
         function loadData() {
+            if (unsubscribe) unsubscribe();
+            
             const q = query(collection(db, "transactions"), orderBy("date", "desc"), orderBy("createdAt", "desc"));
             
-            onSnapshot(q, (snapshot) => {
+            unsubscribe = onSnapshot(q, (snapshot) => {
                 const list = document.getElementById('listContainer');
                 const totalDisplay = document.getElementById('totalDisplay');
                 const countTag = document.getElementById('countTag');
@@ -218,9 +269,9 @@
                 let total = 0;
 
                 if (snapshot.empty) {
-                    list.innerHTML = `<div class="p-20 text-center text-gray-400">目前尚無交易紀錄</div>`;
+                    list.innerHTML = `<div class="p-20 text-center text-gray-400">目前雲端尚無交易紀錄</div>`;
                     totalDisplay.innerText = "$ 0";
-                    countTag.innerText = "0 筆";
+                    countTag.innerText = "0 筆紀錄";
                     return;
                 }
 
@@ -228,19 +279,19 @@
                     const d = doc.data();
                     total += d.amount;
                     html += `
-                        <div class="group flex items-center justify-between p-5 hover:bg-indigo-50/30 transition-colors">
+                        <div class="group flex items-center justify-between p-5 hover:bg-indigo-50/50 transition-all border-l-4 border-transparent hover:border-indigo-500">
                             <div class="flex items-center gap-4">
-                                <div class="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold">
+                                <div class="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center font-bold">
                                     ${d.name.charAt(0)}
                                 </div>
                                 <div>
                                     <p class="font-bold text-gray-800">${d.name} <span class="text-xs text-indigo-400 ml-1">x${d.qty}</span></p>
-                                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">${d.date}</p>
+                                    <p class="text-[10px] text-gray-400 font-bold tracking-tighter uppercase">日期: ${d.date}</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-4">
                                 <span class="text-lg font-black text-gray-900">$${d.amount.toLocaleString()}</span>
-                                <button onclick="deleteItem('${doc.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-gray-300 hover:text-red-500 transition-all">
+                                <button onclick="deleteItem('${doc.id}', '${d.name}')" class="opacity-0 group-hover:opacity-100 p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 </button>
                             </div>
@@ -250,7 +301,10 @@
                 
                 list.innerHTML = html;
                 totalDisplay.innerText = `$ ${total.toLocaleString()}`;
-                countTag.innerText = `${snapshot.size} 筆`;
+                countTag.innerText = `${snapshot.size} 筆紀錄`;
+            }, (error) => {
+                console.error("Snapshot error:", error);
+                list.innerHTML = `<div class="p-10 text-center text-rose-500 font-bold">資料讀取權限不足，請檢查 Firestore Rules。</div>`;
             });
         }
     </script>
