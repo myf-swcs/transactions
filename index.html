@@ -1,321 +1,376 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>交易記錄系統</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
-        body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #f8fafc;
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  query, 
+  deleteDoc, 
+  doc 
+} from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken,
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { Trash2, Plus, Download, TrendingUp, TrendingDown, Wallet, Share2, CheckCircle2 } from 'lucide-react';
+
+// --- Firebase 配置 ---
+const firebaseConfig = {
+  apiKey: "AIzaSyD76WGGR6QwCMr-qXXPNfCxefLZWK5KI-c",
+  authDomain: "transactions-2d7ca.firebaseapp.com",
+  projectId: "transactions-2d7ca",
+  storageBucket: "transactions-2d7ca.firebasestorage.app",
+  messagingSenderId: "83055519403",
+  appId: "1:83055519403:web:3c44154f221783392c79ee"
+};
+
+// --- Google Sheets 配置 ---
+// 已更新為你提供的 Apps Script URL
+const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbyZcgHrZmHCeCi034Ghk8h8uknjs-QTLML2a4rq893g5YN5sfj5xN-xKDFBfFaGinGl/exec"; 
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncStatus, setLastSyncStatus] = useState(null); // 'success' | 'error' | null
+  
+  const [desc, setDesc] = useState('');
+  const [customDesc, setCustomDesc] = useState('');
+  const [price, setPrice] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [type, setType] = useState('income');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const priceMap = {
+    '毛巾': 25,
+    '鎖匙扣': 20
+  };
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
         }
-    </style>
-</head>
-<body class="p-4 md:p-8">
-    <div class="max-w-4xl mx-auto">
-        <!-- 標題區 -->
-        <header class="mb-8 text-center">
-            <h1 class="text-3xl font-bold text-slate-800">小生意交易記錄</h1>
-            <p class="text-slate-500 mt-2">隨時追蹤你的收入與支出</p>
+      } catch (error) {
+        console.error("Firebase Auth Error:", error);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) setLoading(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const collectionPath = collection(db, 'artifacts', appId, 'users', user.uid, 'transactions');
+    const q = query(collectionPath);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const sortedDocs = docs.sort((a, b) => new Date(b.date) - new Date(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
+      setTransactions(sortedDocs);
+      setLoading(false);
+    }, (error) => console.error("Firestore Error:", error));
+    return () => unsubscribe();
+  }, [user]);
+
+  // 同步至 Google Sheets 的函數
+  const syncToGoogleSheet = async (data) => {
+    if (!GOOGLE_SHEET_URL) return;
+    setSyncing(true);
+    setLastSyncStatus(null);
+    try {
+      // 使用 fetch 發送數據到 Apps Script
+      // 注意：Apps Script 的 doPost 配合 no-cors 模式
+      await fetch(GOOGLE_SHEET_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        cache: 'no-cache',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, uid: user.uid })
+      });
+      setLastSyncStatus('success');
+      // 3秒後移除成功圖示
+      setTimeout(() => setLastSyncStatus(null), 3000);
+    } catch (error) {
+      console.error("Google Sheet Sync Error:", error);
+      setLastSyncStatus('error');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleProductChange = (val) => {
+    setDesc(val);
+    if (priceMap[val]) setPrice(priceMap[val]);
+    else if (val === '其他') setPrice('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+
+    const finalDesc = desc === '其他' ? customDesc : desc;
+    const p = parseFloat(price);
+    const q = parseInt(quantity);
+    const transactionData = {
+      desc: finalDesc,
+      price: p,
+      quantity: q,
+      amount: p * q,
+      type: type,
+      date: date,
+      createdAt: Date.now()
+    };
+
+    try {
+      // 1. 存入 Firebase (主要資料庫)
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), transactionData);
+      
+      // 2. 同步到 Google Sheet (備份/報表)
+      await syncToGoogleSheet(transactionData);
+
+      // 清空輸入
+      setDesc('');
+      setCustomDesc('');
+      setPrice('');
+      setQuantity(1);
+    } catch (error) {
+      console.error("Add Transaction Error:", error);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!user || !window.confirm('確定要從雲端刪除這筆記錄嗎？\n(注意：此操作不會影響已寫入 Google Sheet 的資料)')) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id));
+    } catch (error) {
+      console.error("Delete Error:", error);
+    }
+  };
+
+  const stats = transactions.reduce((acc, curr) => {
+    if (curr.type === 'income') acc.income += curr.amount;
+    else acc.expense += curr.amount;
+    return acc;
+  }, { income: 0, expense: 0 });
+
+  if (!user) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 font-sans">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600 font-medium tracking-wide">初始化雲端環境中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
+      <div className="max-w-5xl mx-auto">
+        <header className="mb-8 text-center">
+          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight text-center">小生意雲端記錄系統</h1>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 uppercase tracking-tighter">
+              Firebase: 已連線
+            </span>
+            <span className="flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 uppercase tracking-tighter">
+              Google Sheet: 已配置
+            </span>
+            <div className="w-full md:w-auto text-[10px] text-slate-400 font-mono mt-1 md:mt-0">
+              ID: {user.uid}
+            </div>
+          </div>
         </header>
 
-        <!-- 數據概覽卡片 -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <p class="text-sm text-slate-500 mb-1">總結餘</p>
-                <p id="totalBalance" class="text-2xl font-bold text-blue-600">$ 0</p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <p class="text-sm text-slate-500 mb-1">總收入</p>
-                <p id="totalIncome" class="text-2xl font-bold text-emerald-600">$ 0</p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <p class="text-sm text-slate-500 mb-1">總支出</p>
-                <p id="totalExpense" class="text-2xl font-bold text-rose-600">$ 0</p>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <StatCard label="目前結餘" value={stats.income - stats.expense} color="text-blue-600" icon={<Wallet className="w-5 h-5" />} />
+          <StatCard label="總收入" value={stats.income} color="text-emerald-600" icon={<TrendingUp className="w-5 h-5" />} />
+          <StatCard label="總支出" value={stats.expense} color="text-rose-600" icon={<TrendingDown className="w-5 h-5" />} />
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- 新增交易表單 -->
-            <div class="lg:col-span-1">
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 sticky top-8">
-                    <h2 class="text-xl font-bold mb-4 text-slate-800">新增交易</h2>
-                    <form id="transactionForm" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">產品名稱</label>
-                            <select id="descSelect" required class="w-full p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="" disabled selected>請選擇產品</option>
-                                <option value="毛巾">毛巾 (單價 $25)</option>
-                                <option value="鎖匙扣">鎖匙扣 (單價 $20)</option>
-                                <option value="其他">其他 (自行輸入)</option>
-                            </select>
-                            <input type="text" id="customDesc" placeholder="請輸入產品名稱" 
-                                class="hidden mt-2 w-full p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">單價 (HKD)</label>
-                                <input type="number" id="price" required placeholder="0.00" step="0.01"
-                                    class="w-full p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">數量</label>
-                                <input type="number" id="quantity" required value="1" min="1"
-                                    class="w-full p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                        </div>
-                        <div class="p-3 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                            <p class="text-xs text-slate-500">計算總額：</p>
-                            <p class="text-lg font-bold text-slate-700">$ <span id="totalDisplay">0.00</span></p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">類型</label>
-                            <select id="type" class="w-full p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="income">收入 (+)</option>
-                                <option value="expense">支出 (-)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">日期</label>
-                            <input type="date" id="date" required
-                                class="w-full p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
-                        <button type="submit" class="w-full bg-slate-800 text-white py-2 rounded-lg font-medium hover:bg-slate-700 transition">
-                            儲存記錄
-                        </button>
-                    </form>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 sticky top-8">
+              <h2 className="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-blue-500" /> 新增交易
+              </h2>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">產品名稱</label>
+                  <select 
+                    value={desc} 
+                    onChange={(e) => handleProductChange(e.target.value)}
+                    required
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none"
+                  >
+                    <option value="" disabled>請選擇產品</option>
+                    <option value="毛巾">毛巾 (單價 $25)</option>
+                    <option value="鎖匙扣">鎖匙扣 (單價 $20)</option>
+                    <option value="其他">其他 (自行輸入)</option>
+                  </select>
+                  {desc === '其他' && (
+                    <input 
+                      type="text" 
+                      value={customDesc}
+                      onChange={(e) => setCustomDesc(e.target.value)}
+                      placeholder="輸入產品名稱"
+                      required
+                      className="mt-2 w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  )}
                 </div>
-            </div>
 
-            <!-- 歷史記錄清單 -->
-            <div class="lg:col-span-2">
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                    <div class="p-6 border-b border-slate-100 flex justify-between items-center">
-                        <h2 class="text-xl font-bold text-slate-800">歷史記錄</h2>
-                        <button onclick="exportToCSV()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">匯出 CSV</button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-sm font-medium text-slate-500">日期</th>
-                                    <th class="px-6 py-3 text-sm font-medium text-slate-500">說明</th>
-                                    <th class="px-6 py-3 text-sm font-medium text-slate-500 text-center">數量</th>
-                                    <th class="px-6 py-3 text-sm font-medium text-slate-500 text-right">總金額</th>
-                                    <th class="px-6 py-3 text-sm font-medium text-slate-500 text-center">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="transactionList" class="divide-y divide-slate-100">
-                                <!-- 動態插入內容 -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <div id="emptyState" class="p-12 text-center text-slate-400 hidden">
-                        目前尚無交易記錄
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">單價</label>
+                    <input 
+                      type="number" 
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      required step="0.01"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">數量</label>
+                    <input 
+                      type="number" 
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      required min="1"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
                 </div>
+
+                <div className="p-4 bg-slate-900 rounded-2xl flex justify-between items-center">
+                  <span className="text-xs font-medium text-slate-400">總計金額</span>
+                  <span className="text-xl font-bold text-white tracking-tight">${(parseFloat(price || 0) * quantity).toFixed(2)}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setType('income')}
+                    className={`p-3 rounded-xl border text-sm font-bold transition-all ${type === 'income' ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-100' : 'bg-white text-slate-400 border-slate-200'}`}>收入 (+)</button>
+                  <button type="button" onClick={() => setType('expense')}
+                    className={`p-3 rounded-xl border text-sm font-bold transition-all ${type === 'expense' ? 'bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-100' : 'bg-white text-slate-400 border-slate-200'}`}>支出 (-)</button>
+                </div>
+
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none" />
+
+                <button 
+                  type="submit" 
+                  disabled={syncing}
+                  className={`w-full py-4 rounded-xl font-black text-white transition-all shadow-xl flex items-center justify-center gap-2 ${syncing ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200 active:scale-[0.98]'}`}
+                >
+                  {syncing ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      同步雲端中...
+                    </>
+                  ) : lastSyncStatus === 'success' ? (
+                    <>
+                      <CheckCircle2 className="h-5 w-5" />
+                      已成功儲存
+                    </>
+                  ) : '儲存並同步至雲端'}
+                </button>
+              </form>
             </div>
+          </div>
+
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <h2 className="text-xl font-bold text-slate-800">歷史交易清單</h2>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <a 
+                    href="https://docs.google.com/spreadsheets/d/1TkcsQ-YOAqwAaHVslWa4UnDVJk8fV9m3RyRz_ZT9mg8/edit" 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="flex-1 sm:flex-none text-xs font-bold text-emerald-600 flex items-center justify-center gap-1.5 hover:bg-emerald-50 px-4 py-2 rounded-xl transition-all border border-emerald-100"
+                  >
+                    <Share2 className="w-3.5 h-3.5" /> 開啟試算表
+                  </a>
+                </div>
+              </div>
+
+              {loading ? (
+                <div className="p-20 text-center text-slate-300 font-medium tracking-wide">雲端數據讀取中...</div>
+              ) : transactions.length === 0 ? (
+                <div className="p-20 text-center text-slate-400 font-medium tracking-wide">目前沒有任何記錄</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50/50">
+                      <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                        <th className="px-6 py-4">日期</th>
+                        <th className="px-6 py-4">項目</th>
+                        <th className="px-6 py-4 text-center">數量</th>
+                        <th className="px-6 py-4 text-right">金額</th>
+                        <th className="px-6 py-4 text-center">管理</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {transactions.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/30 transition-colors group">
+                          <td className="px-6 py-4 text-sm text-slate-500 font-medium">{item.date}</td>
+                          <td className="px-6 py-4 text-sm font-bold text-slate-800">{item.desc}</td>
+                          <td className="px-6 py-4 text-sm text-center text-slate-500 font-bold">{item.quantity}</td>
+                          <td className={`px-6 py-4 text-sm text-right font-black ${item.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {item.type === 'income' ? '+' : '-'}${item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <button 
+                              onClick={() => handleDelete(item.id)} 
+                              className="p-2 text-slate-200 hover:text-rose-500 transition-all active:scale-90"
+                              title="刪除"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+      </div>
     </div>
+  );
+}
 
-    <script>
-        // --- 資料庫初始化 (IndexedDB) ---
-        let db;
-        const request = indexedDB.open("ShopTrackerDB", 1);
-
-        request.onupgradeneeded = (e) => {
-            db = e.target.result;
-            if (!db.objectStoreNames.contains("transactions")) {
-                db.createObjectStore("transactions", { keyPath: "id", autoIncrement: true });
-            }
-        };
-
-        request.onsuccess = (e) => {
-            db = e.target.result;
-            loadTransactions();
-        };
-
-        // --- 產品預設價格對照表 ---
-        const priceMap = {
-            '毛巾': 25,
-            '鎖匙扣': 20
-        };
-
-        const descSelect = document.getElementById('descSelect');
-        const customDescInput = document.getElementById('customDesc');
-        const priceInput = document.getElementById('price');
-        const quantityInput = document.getElementById('quantity');
-        const totalDisplay = document.getElementById('totalDisplay');
-
-        // 計算總額函數
-        function calculateTotal() {
-            const p = parseFloat(priceInput.value) || 0;
-            const q = parseInt(quantityInput.value) || 0;
-            totalDisplay.innerText = (p * q).toFixed(2);
-        }
-
-        // 監聽輸入變化
-        [priceInput, quantityInput].forEach(el => {
-            el.addEventListener('input', calculateTotal);
-        });
-
-        // 處理產品選擇邏輯
-        descSelect.addEventListener('change', function() {
-            const selectedValue = this.value;
-
-            if (selectedValue === '其他') {
-                customDescInput.classList.remove('hidden');
-                customDescInput.setAttribute('required', 'true');
-                priceInput.value = '';
-            } else {
-                customDescInput.classList.add('hidden');
-                customDescInput.removeAttribute('required');
-                
-                if (priceMap[selectedValue]) {
-                    priceInput.value = priceMap[selectedValue];
-                } else {
-                    priceInput.value = '';
-                }
-            }
-            calculateTotal();
-        });
-
-        // 設定預設日期為今天
-        document.getElementById('date').valueAsDate = new Date();
-
-        // --- 表單提交處理 ---
-        document.getElementById('transactionForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            
-            let finalDesc = descSelect.value;
-            if (finalDesc === '其他') {
-                finalDesc = customDescInput.value;
-            }
-
-            const p = parseFloat(priceInput.value);
-            const q = parseInt(quantityInput.value);
-
-            const transaction = {
-                desc: finalDesc,
-                price: p,
-                quantity: q,
-                amount: p * q, // 存儲計算後的總額
-                type: document.getElementById('type').value,
-                date: document.getElementById('date').value,
-                createdAt: new Date().getTime()
-            };
-
-            const tx = db.transaction("transactions", "readwrite");
-            const store = tx.objectStore("transactions");
-            store.add(transaction);
-
-            tx.oncomplete = () => {
-                document.getElementById('transactionForm').reset();
-                document.getElementById('date').valueAsDate = new Date();
-                document.getElementById('quantity').value = 1;
-                customDescInput.classList.add('hidden'); 
-                totalDisplay.innerText = '0.00';
-                loadTransactions();
-            };
-        });
-
-        // --- 載入並顯示資料 ---
-        function loadTransactions() {
-            const tx = db.transaction("transactions", "readonly");
-            const store = tx.objectStore("transactions");
-            const request = store.getAll();
-
-            request.onsuccess = () => {
-                const data = request.result;
-                data.sort((a, b) => new Date(b.date) - new Date(a.date) || b.createdAt - a.createdAt);
-                renderTable(data);
-                updateStats(data);
-            };
-        }
-
-        function renderTable(data) {
-            const list = document.getElementById('transactionList');
-            const emptyState = document.getElementById('emptyState');
-            list.innerHTML = '';
-
-            if (data.length === 0) {
-                emptyState.classList.remove('hidden');
-                return;
-            } else {
-                emptyState.classList.add('hidden');
-            }
-
-            data.forEach(item => {
-                const isIncome = item.type === 'income';
-                const row = document.createElement('tr');
-                row.className = "hover:bg-slate-50 transition";
-                row.innerHTML = `
-                    <td class="px-6 py-4 text-sm text-slate-600">${item.date}</td>
-                    <td class="px-6 py-4 text-sm font-medium text-slate-800">${item.desc}</td>
-                    <td class="px-6 py-4 text-sm text-center text-slate-600">${item.quantity || 1}</td>
-                    <td class="px-6 py-4 text-sm text-right font-bold ${isIncome ? 'text-emerald-600' : 'text-rose-600'}">
-                        ${isIncome ? '+' : '-'}$${item.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}
-                    </td>
-                    <td class="px-6 py-4 text-center">
-                        <button onclick="deleteTransaction(${item.id})" class="text-slate-300 hover:text-rose-500 transition">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
-                    </td>
-                `;
-                list.appendChild(row);
-            });
-        }
-
-        function updateStats(data) {
-            let income = 0;
-            let expense = 0;
-
-            data.forEach(item => {
-                if (item.type === 'income') income += item.amount;
-                else expense += item.amount;
-            });
-
-            document.getElementById('totalIncome').innerText = `$ ${income.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-            document.getElementById('totalExpense').innerText = `$ ${expense.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-            document.getElementById('totalBalance').innerText = `$ ${(income - expense).toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        }
-
-        function deleteTransaction(id) {
-            const tx = db.transaction("transactions", "readwrite");
-            const store = tx.objectStore("transactions");
-            store.delete(id);
-            tx.oncomplete = () => loadTransactions();
-        }
-
-        function exportToCSV() {
-            const tx = db.transaction("transactions", "readonly");
-            const store = tx.objectStore("transactions");
-            const request = store.getAll();
-
-            request.onsuccess = () => {
-                const data = request.result;
-                if (data.length === 0) return;
-
-                let csvContent = "\uFEFF日期,說明,數量,單價,總額,類型\n"; 
-                data.forEach(item => {
-                    const typeLabel = item.type === 'income' ? '收入' : '支出';
-                    csvContent += `${item.date},${item.desc},${item.quantity || 1},${item.price || item.amount},${item.amount},${typeLabel}\n`;
-                });
-
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", `交易記錄_${new Date().toLocaleDateString()}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            };
-        }
-    </script>
-</body>
-</html>
+function StatCard({ label, value, color, icon }) {
+  return (
+    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-lg hover:shadow-slate-200/50 transition-all group">
+      <div className={`p-4 rounded-2xl transition-all group-hover:scale-110 group-hover:rotate-3 ${color.replace('text', 'bg').replace('600', '50')} ${color}`}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{label}</p>
+        <p className={`text-2xl font-black tracking-tight ${color}`}>
+          ${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+        </p>
+      </div>
+    </div>
+  );
+}
