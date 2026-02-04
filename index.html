@@ -3,155 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>交易記錄系統 (Cloud)</title>
+    <title>小生意交易系統 - 即時管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-        body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #f8fafc;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 10px;
-        }
-        .loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: white;
-            z-index: 50;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.5s ease;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', 'Noto Sans TC', sans-serif; }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
-<body class="p-4 md:p-8 min-h-screen">
+<body class="bg-slate-50 min-h-screen">
 
-    <!-- 加載動畫 -->
-    <div id="loader" class="loading-overlay">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-        <p class="text-slate-600 font-bold">同步雲端資料中...</p>
-    </div>
-
-    <div class="max-w-6xl mx-auto">
-        <!-- 標題區域 -->
-        <header class="mb-10 text-center">
-            <h1 class="text-4xl font-black text-slate-900 tracking-tight">小生意雲端記錄系統</h1>
-            <div class="flex flex-wrap items-center justify-center gap-2 mt-4">
-                <span id="authStatus" class="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 uppercase tracking-widest">
-                    連線中...
-                </span>
-                <div id="userIdDisplay" class="text-[10px] text-slate-400 font-mono bg-white px-2 py-1 rounded-md border border-slate-200 hidden">
-                    UID: 
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">小生意交易系統</h1>
+                <p class="text-slate-500">專為小型經營設計的即時記帳工具</p>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                <div class="bg-indigo-100 p-3 rounded-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">今日累計營收</p>
+                    <p id="totalBalance" class="text-2xl font-bold text-slate-800">$ 0</p>
                 </div>
             </div>
         </header>
 
-        <!-- 數據統計卡片 -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-                <p class="text-sm font-bold text-slate-500 mb-1">目前結餘</p>
-                <p id="totalBalance" class="text-3xl font-black text-blue-600 tracking-tight">$ 0.00</p>
-            </div>
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-                <p class="text-sm font-bold text-slate-500 mb-1">總收入</p>
-                <p id="totalIncome" class="text-3xl font-black text-emerald-600 tracking-tight">$ 0.00</p>
-            </div>
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-                <p class="text-sm font-bold text-slate-500 mb-1">總支出</p>
-                <p id="totalExpense" class="text-3xl font-black text-rose-600 tracking-tight">$ 0.00</p>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <!-- 新增表單區 -->
-            <div class="lg:col-span-4">
-                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 sticky top-8">
-                    <h2 class="text-2xl font-black mb-6 text-slate-800 flex items-center gap-2">
-                        新增記錄
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left: Input Form -->
+            <div class="lg:col-span-1">
+                <div class="glass-card p-6 rounded-3xl shadow-xl border border-white sticky top-8">
+                    <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        登記新交易
                     </h2>
-                    <form id="transactionForm" class="space-y-5">
+                    
+                    <div class="space-y-5">
+                        <!-- 交易日期 -->
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">產品/說明</label>
-                            <select id="descSelect" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
-                                <option value="" disabled selected>請選擇產品</option>
-                                <option value="毛巾">毛巾 (單價 $25)</option>
-                                <option value="鎖匙扣">鎖匙扣 (單價 $20)</option>
-                                <option value="其他">其他 (自行輸入)</option>
-                            </select>
-                            <input type="text" id="customDesc" placeholder="請輸入產品說明" 
-                                class="hidden mt-3 w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                            <label class="block text-sm font-semibold text-slate-600 mb-1">交易日期</label>
+                            <input type="date" id="transactionDate" 
+                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all text-slate-800">
                         </div>
 
+                        <!-- 商品選擇 -->
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-600 mb-1">交易項目</label>
+                            <select id="itemSelect" onchange="handleItemChange()"
+                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all cursor-pointer text-slate-800">
+                                <option value="" disabled selected>請選擇項目...</option>
+                                <option value="毛巾" data-price="25">毛巾 ($25)</option>
+                                <option value="鎖匙扣" data-price="20">鎖匙扣 ($20)</option>
+                                <option value="other">其他 (手動輸入)</option>
+                            </select>
+                        </div>
+
+                        <!-- 隱藏的「其他」輸入框 -->
+                        <div id="otherItemDiv" class="hidden fade-in">
+                            <label class="block text-sm font-semibold text-slate-600 mb-1">自定義項目名稱</label>
+                            <input type="text" id="itemNameCustom" placeholder="例如: 貼紙" 
+                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all">
+                        </div>
+                        
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-bold text-slate-700 mb-2">單價</label>
-                                <input type="number" id="price" required placeholder="0.00" step="0.01"
-                                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-semibold text-slate-600 mb-1">數量</label>
+                                <input type="number" id="quantity" value="1" min="1" oninput="calculateTotal()"
+                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all">
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-slate-700 mb-2">數量</label>
-                                <input type="number" id="quantity" required value="1" min="1"
-                                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-semibold text-slate-600 mb-1">總金額 (HKD)</label>
+                                <input type="number" id="amount" placeholder="0.00" 
+                                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-bold text-indigo-600">
                             </div>
                         </div>
 
-                        <div class="p-4 bg-slate-900 rounded-2xl flex justify-between items-center">
-                            <span class="text-xs font-bold text-slate-400">總計</span>
-                            <span class="text-2xl font-black text-white">$ <span id="totalDisplay">0.00</span></span>
-                        </div>
-
-                        <div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button type="button" id="btnIncome" class="type-btn bg-emerald-500 text-white p-3 rounded-xl font-bold" onclick="setType('income')">收入</button>
-                                <button type="button" id="btnExpense" class="type-btn bg-slate-100 text-slate-400 p-3 rounded-xl font-bold" onclick="setType('expense')">支出</button>
-                            </div>
-                            <input type="hidden" id="type" value="income">
-                        </div>
-
-                        <input type="date" id="date" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
-
-                        <button id="submitBtn" type="submit" disabled class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-blue-700 disabled:bg-slate-300 transition-all">
-                            儲存雲端記錄
+                        <button onclick="addTransaction()" id="submitBtn"
+                            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg transition duration-200 flex items-center justify-center space-x-2">
+                            <span>確認存檔</span>
                         </button>
-                    </form>
+                    </div>
                 </div>
             </div>
 
-            <!-- 清單區 -->
-            <div class="lg:col-span-8">
-                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full min-h-[600px]">
-                    <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
-                        <h2 class="text-2xl font-black text-slate-800">歷史記錄</h2>
-                        <button onclick="exportToCSV()" id="exportBtn" disabled class="flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-all disabled:text-slate-300">
-                            匯出 CSV
-                        </button>
+            <!-- Right: List -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                        <h3 class="font-bold text-slate-700">歷史交易明細</h3>
+                        <span id="recordCount" class="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded-full font-bold">0 筆紀錄</span>
                     </div>
                     
-                    <div class="overflow-x-auto flex-1 custom-scrollbar">
-                        <table class="w-full text-left border-collapse">
-                            <thead class="bg-slate-50/80 sticky top-0">
-                                <tr>
-                                    <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">日期</th>
-                                    <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">說明</th>
-                                    <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">數量</th>
-                                    <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">總金額</th>
-                                    <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">刪除</th>
-                                </tr>
-                            </thead>
-                            <tbody id="transactionList" class="divide-y divide-slate-50"></tbody>
-                        </table>
-                        <div id="emptyState" class="hidden py-32 text-center">
-                            <p class="text-slate-400 font-bold">目前尚無雲端交易記錄</p>
+                    <div id="transactionList" class="divide-y divide-slate-100 min-h-[400px]">
+                        <!-- 動態內容 -->
+                        <div class="flex items-center justify-center h-64">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                         </div>
                     </div>
                 </div>
@@ -159,15 +112,13 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
+    <!-- Firebase SDKs -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Firebase 設定與初始化
         const firebaseConfig = {
-            apiKey: "", // 由環境自動注入
+            apiKey: "AIzaSyD76WGGR6QwCMr-qXXPNfCxefLZWK5KI-c",
             authDomain: "transactions-2d7ca.firebaseapp.com",
             projectId: "transactions-2d7ca",
             storageBucket: "transactions-2d7ca.firebasestorage.app",
@@ -176,216 +127,159 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const transCol = collection(db, "transactions");
 
-        let currentUser = null;
-        let allTransactions = [];
-
-        // --- 身分驗證處理 ---
-        const initAuth = async () => {
-            try {
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (token) {
-                    await signInWithCustomToken(auth, token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (err) {
-                console.error("Auth Error:", err);
-                document.getElementById('authStatus').innerText = "連線失敗";
-            }
-        };
-
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                document.getElementById('authStatus').innerText = "Firebase: 已連線";
-                document.getElementById('authStatus').className = "flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-widest";
-                document.getElementById('userIdDisplay').innerText = `UID: ${user.uid}`;
-                document.getElementById('userIdDisplay').classList.remove('hidden');
-                document.getElementById('submitBtn').disabled = false;
-                startSync();
-            }
+        // 初始化日期為今天
+        window.addEventListener('DOMContentLoaded', () => {
+            const dateInput = document.getElementById('transactionDate');
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.value = today;
         });
 
-        initAuth();
-
-        // --- 資料即時同步 ---
-        function startSync() {
-            if (!currentUser) return;
-            const colRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
+        // 計算總金額邏輯
+        window.calculateTotal = () => {
+            const select = document.getElementById('itemSelect');
+            const qtyInput = document.getElementById('quantity');
+            const amountInput = document.getElementById('amount');
+            const selectedOption = select.options[select.selectedIndex];
             
-            onSnapshot(colRef, (snapshot) => {
-                const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                // 前端排序處理
-                allTransactions = docs.sort((a, b) => new Date(b.date) - new Date(a.date) || b.createdAt - a.createdAt);
-                
-                render(allTransactions);
-                updateStats(allTransactions);
-                
-                // 隱藏加載畫面
-                const loader = document.getElementById('loader');
-                loader.style.opacity = '0';
-                setTimeout(() => loader.style.display = 'none', 500);
-                document.getElementById('exportBtn').disabled = allTransactions.length === 0;
-            }, (err) => {
-                console.error("Firestore Error:", err);
-            });
-        }
-
-        // --- 介面操作函數 ---
-        window.setType = function(type) {
-            document.getElementById('type').value = type;
-            const btnInc = document.getElementById('btnIncome');
-            const btnExp = document.getElementById('btnExpense');
-            if (type === 'income') {
-                btnInc.className = "bg-emerald-500 text-white p-3 rounded-xl font-bold shadow-lg shadow-emerald-100";
-                btnExp.className = "bg-slate-100 text-slate-400 p-3 rounded-xl font-bold";
-            } else {
-                btnExp.className = "bg-rose-500 text-white p-3 rounded-xl font-bold shadow-lg shadow-rose-100";
-                btnInc.className = "bg-slate-100 text-slate-400 p-3 rounded-xl font-bold";
+            if (select.value && select.value !== 'other') {
+                const price = Number(selectedOption.getAttribute('data-price'));
+                const qty = Number(qtyInput.value) || 1;
+                amountInput.value = price * qty;
             }
         };
 
-        const priceInput = document.getElementById('price');
-        const quantityInput = document.getElementById('quantity');
-        const totalDisplay = document.getElementById('totalDisplay');
-
-        function calculate() {
-            const p = parseFloat(priceInput.value) || 0;
-            const q = parseInt(quantityInput.value) || 0;
-            totalDisplay.innerText = (p * q).toFixed(2);
-        }
-        priceInput.oninput = calculate;
-        quantityInput.oninput = calculate;
-
-        document.getElementById('descSelect').onchange = function() {
-            const custom = document.getElementById('customDesc');
-            if (this.value === '其他') {
-                custom.classList.remove('hidden');
-                custom.required = true;
-                priceInput.value = '';
+        // 下拉選單連動邏輯
+        window.handleItemChange = () => {
+            const select = document.getElementById('itemSelect');
+            const otherDiv = document.getElementById('otherItemDiv');
+            const qtyInput = document.getElementById('quantity');
+            
+            if (select.value === 'other') {
+                otherDiv.classList.remove('hidden');
+                document.getElementById('amount').value = '';
+                qtyInput.value = 1;
             } else {
-                custom.classList.add('hidden');
-                custom.required = false;
-                priceInput.value = this.value === '毛巾' ? 25 : 20;
+                otherDiv.classList.add('hidden');
+                window.calculateTotal();
             }
-            calculate();
         };
 
-        document.getElementById('date').valueAsDate = new Date();
+        // 新增交易
+        window.addTransaction = async () => {
+            const dateInput = document.getElementById('transactionDate');
+            const select = document.getElementById('itemSelect');
+            const customName = document.getElementById('itemNameCustom');
+            const qtyInput = document.getElementById('quantity');
+            const amountEl = document.getElementById('amount');
+            const btn = document.getElementById('submitBtn');
 
-        // --- 新增記錄 ---
-        document.getElementById('transactionForm').onsubmit = async (e) => {
-            e.preventDefault();
-            if (!currentUser) return;
+            let finalName = "";
+            if (select.value === 'other') {
+                finalName = customName.value;
+            } else if (select.value) {
+                finalName = select.value;
+            }
 
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.disabled = true;
-            submitBtn.innerText = "儲存中...";
+            if (!finalName || !amountEl.value || !dateInput.value) {
+                return alert("請完整填寫日期、項目與金額");
+            }
 
-            const desc = document.getElementById('descSelect').value === '其他' ? 
-                         document.getElementById('customDesc').value : 
-                         document.getElementById('descSelect').value;
-            const p = parseFloat(priceInput.value);
-            const q = parseInt(quantityInput.value);
+            btn.disabled = true;
+            btn.innerHTML = `<span class="animate-pulse">存檔中...</span>`;
 
             try {
-                await addDoc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions'), {
-                    desc,
-                    price: p,
-                    quantity: q,
-                    amount: p * q,
-                    type: document.getElementById('type').value,
-                    date: document.getElementById('date').value,
-                    createdAt: Date.now()
+                await addDoc(transCol, {
+                    name: finalName,
+                    date: dateInput.value,
+                    quantity: Number(qtyInput.value) || 1,
+                    amount: Number(amountEl.value),
+                    createdAt: serverTimestamp()
                 });
-                
-                // 重置表單
-                document.getElementById('transactionForm').reset();
-                document.getElementById('date').valueAsDate = new Date();
-                document.getElementById('customDesc').classList.add('hidden');
-                totalDisplay.innerText = "0.00";
-                setType('income');
-            } catch (err) {
-                console.error(err);
-                alert("儲存失敗，請檢查連線。");
+                // 重置表單 (日期保持為今天)
+                select.selectedIndex = 0;
+                customName.value = '';
+                qtyInput.value = 1;
+                amountEl.value = '';
+                document.getElementById('otherItemDiv').classList.add('hidden');
+            } catch (e) {
+                console.error(e);
+                alert("儲存失敗");
             } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerText = "儲存雲端記錄";
+                btn.disabled = false;
+                btn.innerHTML = `<span>確認存檔</span>`;
             }
         };
 
-        // --- 刪除記錄 ---
-        window.deleteItem = async (id) => {
-            if (!confirm("確定刪除此筆記錄嗎？")) return;
-            try {
-                await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions', id));
-            } catch (err) {
-                alert("刪除失敗");
+        // 刪除交易
+        window.deleteTransaction = async (id, name) => {
+            if(confirm(`確定要刪除「${name}」這筆交易嗎？`)) {
+                try {
+                    await deleteDoc(doc(db, "transactions", id));
+                } catch (e) {
+                    alert("刪除失敗");
+                }
             }
         };
 
-        // --- 畫面渲染 ---
-        function render(data) {
-            const list = document.getElementById('transactionList');
-            const empty = document.getElementById('emptyState');
-            list.innerHTML = '';
+        // 監聽即時數據 (依日期排序，同日依建立時間排序)
+        const q = query(transCol, orderBy("date", "desc"), orderBy("createdAt", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const listEl = document.getElementById('transactionList');
+            const balanceEl = document.getElementById('totalBalance');
+            const countEl = document.getElementById('recordCount');
             
-            if (data.length === 0) {
-                empty.classList.remove('hidden');
+            let html = '';
+            let total = 0;
+            
+            if (snapshot.empty) {
+                listEl.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-64 text-slate-400">
+                        <svg class="w-12 h-12 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                        <p>尚無任何交易紀錄</p>
+                    </div>`;
+                balanceEl.innerText = `$ 0`;
+                countEl.innerText = `0 筆紀錄`;
                 return;
             }
-            empty.classList.add('hidden');
 
-            data.forEach(item => {
-                const isInc = item.type === 'income';
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50 transition-colors group";
-                tr.innerHTML = `
-                    <td class="px-6 py-4 text-sm font-medium text-slate-500">${item.date}</td>
-                    <td class="px-6 py-4 text-sm font-bold text-slate-800">${item.desc}</td>
-                    <td class="px-6 py-4 text-sm text-center font-bold text-slate-600">${item.quantity}</td>
-                    <td class="px-6 py-4 text-sm text-right font-black ${isInc ? 'text-emerald-600' : 'text-rose-600'}">
-                        ${isInc ? '+' : '-'}$${Number(item.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}
-                    </td>
-                    <td class="px-6 py-4 text-center">
-                        <button onclick="deleteItem('${item.id}')" class="p-2 text-slate-300 hover:text-rose-500 transition-all">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
-                    </td>
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const id = doc.id;
+                total += data.amount;
+
+                html += `
+                    <div class="group flex items-center justify-between p-5 hover:bg-slate-50 transition-all border-l-4 border-transparent hover:border-indigo-500">
+                        <div class="flex items-center space-x-4">
+                            <div class="bg-indigo-50 text-indigo-600 p-2 rounded-xl">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-800">${data.name} <span class="text-indigo-400 font-medium ml-1">x ${data.quantity || 1}</span></p>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                                    📅 ${data.date}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <span class="font-black text-lg text-slate-900">$${data.amount.toLocaleString()}</span>
+                            <button onclick="deleteTransaction('${id}', '${data.name}')" 
+                                class="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 focus:opacity-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
                 `;
-                list.appendChild(tr);
             });
-        }
 
-        // --- 統計更新 ---
-        function updateStats(data) {
-            let inc = 0, exp = 0;
-            data.forEach(i => i.type === 'income' ? inc += Number(i.amount) : exp += Number(i.amount));
-            document.getElementById('totalIncome').innerText = `$ ${inc.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-            document.getElementById('totalExpense').innerText = `$ ${exp.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-            document.getElementById('totalBalance').innerText = `$ ${(inc - exp).toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        }
-
-        // --- CSV 匯出 ---
-        window.exportToCSV = () => {
-            if (allTransactions.length === 0) return;
-            let csv = "\uFEFF日期,說明,數量,金額,類型\n";
-            allTransactions.forEach(i => {
-                csv += `${i.date},${i.desc},${i.quantity},${i.amount},${i.type === 'income' ? '收入' : '支出'}\n`;
-            });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `雲端交易記錄_${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-        };
+            listEl.innerHTML = html;
+            balanceEl.innerText = `$ ${total.toLocaleString()}`;
+            countEl.innerText = `${snapshot.size} 筆紀錄`;
+        });
     </script>
 </body>
 </html>
