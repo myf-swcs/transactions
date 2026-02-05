@@ -74,7 +74,7 @@
                         </tbody>
                         <tfoot>
                             <tr class="font-bold bg-gray-50">
-                                <td colspan="3" class="px-2 py-3 text-right">當前頁面總計：</td>
+                                <td colspan="3" class="px-2 py-3 text-right">總計金額：</td>
                                 <td colspan="2" class="px-2 py-3 text-blue-600" id="grandTotal">$0</td>
                             </tr>
                         </tfoot>
@@ -122,7 +122,7 @@
             const qty = parseInt(document.getElementById('quantity').value);
 
             const newRecord = {
-                id: "ID-" + Date.now(), // Unique ID for finding row in sheet
+                id: "ID-" + Date.now(), // 唯一 ID 用於在 Sheet 中搜尋行
                 date: document.getElementById('date').value,
                 product: productSelect.value,
                 quantity: qty,
@@ -131,13 +131,13 @@
                 status: 'active'
             };
 
-            // Update Local
+            // 更新本地數據
             transactions.unshift(newRecord);
             saveData();
             renderRecords();
             showToast('已新增並同步中...');
 
-            // Sync to Sheet
+            // 同步至 Google Sheet
             syncData(newRecord);
         });
 
@@ -149,12 +149,12 @@
             if (confirm('確定要刪除此記錄嗎？這將會在 Google Sheet 同步標記為 del。')) {
                 const itemToDelete = { ...transactions[index], status: 'del' };
                 
-                // Update Local UI immediately
+                // 立即更新本地 UI
                 transactions.splice(index, 1);
                 saveData();
                 renderRecords();
                 
-                showToast('正在同步刪除標記...');
+                showToast('正在向雲端標記刪除...');
                 syncData(itemToDelete);
             }
         }
@@ -163,9 +163,10 @@
         async function syncData(payload) {
             const statusEl = document.getElementById('syncStatus');
             statusEl.textContent = '正在同步...';
-            statusEl.className = 'text-xs text-blue-500';
+            statusEl.className = 'text-xs text-blue-500 font-bold';
 
             try {
+                // 使用 fetch POST
                 await fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -173,11 +174,11 @@
                     body: JSON.stringify(payload)
                 });
                 
-                statusEl.textContent = '最後同步於 ' + new Date().toLocaleTimeString();
+                statusEl.textContent = '最後同步：' + new Date().toLocaleTimeString();
                 statusEl.className = 'text-xs text-green-500';
             } catch (error) {
                 console.error('Sync error:', error);
-                statusEl.textContent = '同步失敗';
+                statusEl.textContent = '連線失敗，請檢查網路';
                 statusEl.className = 'text-xs text-red-500';
             }
         }
@@ -187,6 +188,10 @@
             const list = document.getElementById('recordList');
             list.innerHTML = '';
             let total = 0;
+
+            if (transactions.length === 0) {
+                list.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-gray-400">暫無記錄</td></tr>';
+            }
 
             transactions.forEach(item => {
                 total += item.total;
@@ -198,7 +203,7 @@
                     <td class="px-2 py-4">${item.quantity}</td>
                     <td class="px-2 py-4 font-semibold text-blue-600">$${item.total}</td>
                     <td class="px-2 py-4 text-right">
-                        <button onclick="deleteRecord('${item.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium">
+                        <button onclick="deleteRecord('${item.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium border border-red-200 px-2 py-1 rounded hover:bg-red-50 transition-colors">
                             刪除
                         </button>
                     </td>
