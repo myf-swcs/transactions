@@ -3,100 +3,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>交易記錄管理系統</title>
+    <title>交易記錄管理系統 - 專業版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
-        body { font-family: 'Noto Sans TC', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        body { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9effd 100%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen p-4 md:p-8">
-    <div class="max-w-4xl mx-auto">
-        <header class="mb-8 text-center">
-            <h1 class="text-3xl font-bold text-gray-800">交易記錄管理</h1>
-            <p class="text-gray-600 mt-2">同步更新至 Google Sheets (支援刪除標記)</p>
+<body class="min-h-screen text-slate-800 antialiased">
+    <div class="max-w-6xl mx-auto px-4 py-8 md:py-12">
+        <!-- Header Section -->
+        <header class="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
+            <div>
+                <h1 class="text-4xl font-bold text-slate-900 tracking-tight">交易管理系統</h1>
+                <p class="text-slate-500 mt-2 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    即時雲端同步運作中
+                </p>
+            </div>
+            
+            <!-- 大數據看板 -->
+            <div class="glass-card px-8 py-5 rounded-3xl flex items-center gap-6">
+                <div class="bg-blue-500/10 p-3 rounded-2xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500">累計收入總計</p>
+                    <p class="text-3xl font-bold text-blue-600" id="grandTotalDisplay">$0</p>
+                </div>
+            </div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <!-- 輸入表單 -->
-            <div class="md:col-span-1 bg-white p-6 rounded-xl shadow-md h-fit">
-                <h2 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2">新增交易</h2>
-                <form id="transactionForm" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">產品</label>
-                        <select id="product" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option value="" disabled selected>請選擇產品</option>
-                            <option value="毛巾" data-price="25">毛巾 ($25)</option>
-                            <option value="鎖匙扣" data-price="20">鎖匙扣 ($20)</option>
-                        </select>
-                    </div>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- 左側操作區：新增交易 -->
+            <aside class="lg:col-span-4 space-y-6">
+                <div class="glass-card p-8 rounded-3xl">
+                    <h2 class="text-xl font-bold mb-6 text-slate-800 border-l-4 border-blue-500 pl-4">新增交易記錄</h2>
+                    <form id="transactionForm" class="space-y-5">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-slate-600">選擇產品</label>
+                            <select id="product" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition outline-none appearance-none" onchange="handleProductChange()">
+                                <option value="" disabled selected>請選擇產品...</option>
+                                <option value="毛巾" data-price="25">毛巾 ($25)</option>
+                                <option value="鎖匙扣" data-price="20">鎖匙扣 ($20)</option>
+                                <option value="other">＋ 其他產品 (手動輸入)</option>
+                            </select>
+                        </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">交易日期</label>
-                        <input type="date" id="date" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
+                        <!-- 手動輸入產品 (預設隱藏) -->
+                        <div id="otherProductField" class="hidden animate-fade-in space-y-2">
+                            <label class="text-sm font-semibold text-slate-600">自定義產品名稱</label>
+                            <input type="text" id="customName" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="輸入產品名稱">
+                        </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">數量</label>
-                        <select id="quantity" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                            <!-- JS will populate options 1-50 -->
-                        </select>
-                    </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-sm font-semibold text-slate-600">售價 (單價)</label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                                    <input type="number" id="unitPrice" required class="w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="0">
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-semibold text-slate-600">數量</label>
+                                <select id="quantity" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"></select>
+                            </div>
+                        </div>
 
-                    <div class="pt-4">
-                        <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
-                            新增記錄
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-slate-600">交易日期</label>
+                            <input type="date" id="date" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+
+                        <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200 transform transition active:scale-95 flex justify-center items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" />
+                            </svg>
+                            確認提交
                         </button>
-                    </div>
-                </form>
-            </div>
+                    </form>
+                </div>
+            </aside>
 
-            <!-- 記錄列表 -->
-            <div class="md:col-span-2 bg-white p-6 rounded-xl shadow-md">
-                <div class="flex justify-between items-center mb-4 border-b pb-2">
-                    <h2 class="text-xl font-semibold text-gray-700">歷史記錄</h2>
-                    <span id="syncStatus" class="text-xs text-gray-400">尚未連線</span>
+            <!-- 右側：清單顯示區 -->
+            <main class="lg:col-span-8">
+                <div class="glass-card rounded-3xl overflow-hidden flex flex-col h-full">
+                    <div class="p-8 border-b border-slate-100 flex justify-between items-center">
+                        <h2 class="text-xl font-bold text-slate-800">歷史交易清單</h2>
+                        <div id="syncIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            <div class="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                            等待同步
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto custom-scrollbar flex-grow">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50/50 sticky top-0">
+                                <tr class="text-slate-400 text-[11px] font-bold uppercase tracking-widest">
+                                    <th class="px-8 py-4">交易日期</th>
+                                    <th class="px-6 py-4">產品細節</th>
+                                    <th class="px-6 py-4">數量</th>
+                                    <th class="px-6 py-4 text-right">交易金額</th>
+                                    <th class="px-8 py-4 text-center">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recordList" class="divide-y divide-slate-100">
+                                <!-- 動態填充內容 -->
+                            </tbody>
+                        </table>
+                        <div id="emptyState" class="hidden py-20 text-center">
+                            <div class="inline-block bg-slate-100 p-4 rounded-full mb-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 00-2 2H6a2 2 0 00-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                                </svg>
+                            </div>
+                            <p class="text-slate-400 font-medium">目前暫無任何交易記錄</p>
+                        </div>
+                    </div>
                 </div>
-                
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="text-gray-500 text-sm uppercase">
-                                <th class="px-2 py-3 border-b">日期</th>
-                                <th class="px-2 py-3 border-b">產品</th>
-                                <th class="px-2 py-3 border-b">數量</th>
-                                <th class="px-2 py-3 border-b">總額</th>
-                                <th class="px-2 py-3 border-b text-right">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="recordList" class="text-gray-700">
-                            <!-- Rows added dynamically -->
-                        </tbody>
-                        <tfoot>
-                            <tr class="font-bold bg-gray-50">
-                                <td colspan="3" class="px-2 py-3 text-right">總計金額：</td>
-                                <td colspan="2" class="px-2 py-3 text-blue-600" id="grandTotal">$0</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
+            </main>
         </div>
     </div>
 
-    <!-- Toast Notifications -->
-    <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 transition-transform duration-300 opacity-0 pointer-events-none">
-        提示訊息
+    <!-- 訊息提示 -->
+    <div id="toast" class="fixed bottom-8 right-8 z-50 pointer-events-none transform translate-y-12 opacity-0 transition-all duration-500 ease-out">
+        <div class="bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3">
+            <div id="toastIcon" class="w-2 h-2 rounded-full bg-blue-400"></div>
+            <span id="toastMsg" class="font-medium text-sm"></span>
+        </div>
     </div>
 
     <script>
-        // API URL
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqAwQj-2MHcMFImO6IbSC7NGL_TEmsSfGoEHj-SvPNsUX-SnirFihFFywRSnOoxBD8ng/exec';
-
-        // Local State
         let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
 
-        // Initial setup
         window.onload = () => {
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('date').value = today;
@@ -104,130 +165,148 @@
             const qtySelect = document.getElementById('quantity');
             for (let i = 1; i <= 50; i++) {
                 const opt = document.createElement('option');
-                opt.value = i;
-                opt.textContent = i;
+                opt.value = i; opt.textContent = i;
                 qtySelect.appendChild(opt);
             }
-
             renderRecords();
         };
 
-        // Form Submission
+        function handleProductChange() {
+            const select = document.getElementById('product');
+            const otherField = document.getElementById('otherProductField');
+            const priceInput = document.getElementById('unitPrice');
+            const customNameInput = document.getElementById('customName');
+
+            if (select.value === 'other') {
+                otherField.classList.remove('hidden');
+                otherField.classList.add('animate-fade-in');
+                priceInput.value = '';
+                priceInput.readOnly = false;
+                customNameInput.required = true;
+            } else {
+                otherField.classList.add('hidden');
+                const selectedOption = select.options[select.selectedIndex];
+                const price = selectedOption.getAttribute('data-price');
+                priceInput.value = price;
+                priceInput.readOnly = true;
+                customNameInput.required = false;
+                customNameInput.value = '';
+            }
+        }
+
         document.getElementById('transactionForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const productSelect = document.getElementById('product');
-            const selectedOption = productSelect.options[productSelect.selectedIndex];
-            const price = parseInt(selectedOption.getAttribute('data-price'));
+            const price = parseInt(document.getElementById('unitPrice').value);
             const qty = parseInt(document.getElementById('quantity').value);
+            
+            let finalProductName = productSelect.value === 'other' 
+                ? document.getElementById('customName').value 
+                : productSelect.value;
 
             const newRecord = {
-                id: "ID-" + Date.now(), // 唯一 ID 用於在 Sheet 中搜尋行
+                id: "ID-" + Date.now(),
                 date: document.getElementById('date').value,
-                product: productSelect.value,
+                product: finalProductName,
                 quantity: qty,
                 price: price,
                 total: price * qty,
                 status: 'active'
             };
 
-            // 更新本地數據
             transactions.unshift(newRecord);
             saveData();
             renderRecords();
-            showToast('已新增並同步中...');
-
-            // 同步至 Google Sheet
+            showToast('記錄已新增，同步中...');
             syncData(newRecord);
+
+            if (productSelect.value === 'other') document.getElementById('customName').value = '';
         });
 
-        // Delete Logic
         function deleteRecord(id) {
             const index = transactions.findIndex(t => t.id === id);
             if (index === -1) return;
 
-            if (confirm('確定要刪除此記錄嗎？這將會在 Google Sheet 同步標記為 del。')) {
+            if (confirm('確定要移除此筆交易嗎？雲端試算表也將會同步更新。')) {
                 const itemToDelete = { ...transactions[index], status: 'del' };
-                
-                // 立即更新本地 UI
                 transactions.splice(index, 1);
                 saveData();
                 renderRecords();
-                
-                showToast('正在向雲端標記刪除...');
+                showToast('正在移除並標記雲端資料...');
                 syncData(itemToDelete);
             }
         }
 
-        // Sync Function
         async function syncData(payload) {
-            const statusEl = document.getElementById('syncStatus');
-            statusEl.textContent = '正在同步...';
-            statusEl.className = 'text-xs text-blue-500 font-bold';
+            const indicator = document.getElementById('syncIndicator');
+            indicator.innerHTML = '<div class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping"></div> 同步中...';
+            indicator.className = 'flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-[10px] font-bold tracking-wider text-blue-500';
 
             try {
-                // 使用 fetch POST
                 await fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                
-                statusEl.textContent = '最後同步：' + new Date().toLocaleTimeString();
-                statusEl.className = 'text-xs text-green-500';
+                indicator.innerHTML = '<div class="w-1.5 h-1.5 rounded-full bg-green-500"></div> 已同步';
+                indicator.className = 'flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 text-[10px] font-bold tracking-wider text-green-600';
             } catch (error) {
-                console.error('Sync error:', error);
-                statusEl.textContent = '連線失敗，請檢查網路';
-                statusEl.className = 'text-xs text-red-500';
+                indicator.innerHTML = '<div class="w-1.5 h-1.5 rounded-full bg-red-500"></div> 同步失敗';
+                indicator.className = 'flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 text-[10px] font-bold tracking-wider text-red-500';
             }
         }
 
-        // Helpers
         function renderRecords() {
             const list = document.getElementById('recordList');
+            const emptyState = document.getElementById('emptyState');
             list.innerHTML = '';
-            let total = 0;
+            let totalRevenue = 0;
 
             if (transactions.length === 0) {
-                list.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-gray-400">暫無記錄</td></tr>';
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
             }
 
             transactions.forEach(item => {
-                total += item.total;
+                totalRevenue += item.total;
                 const row = document.createElement('tr');
-                row.className = 'border-b hover:bg-gray-50 transition-colors';
+                row.className = 'group hover:bg-slate-50 transition-all duration-200';
                 row.innerHTML = `
-                    <td class="px-2 py-4 text-sm">${item.date}</td>
-                    <td class="px-2 py-4 font-medium">${item.product}</td>
-                    <td class="px-2 py-4">${item.quantity}</td>
-                    <td class="px-2 py-4 font-semibold text-blue-600">$${item.total}</td>
-                    <td class="px-2 py-4 text-right">
-                        <button onclick="deleteRecord('${item.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium border border-red-200 px-2 py-1 rounded hover:bg-red-50 transition-colors">
-                            刪除
+                    <td class="px-8 py-6">
+                        <span class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">${item.date}</span>
+                    </td>
+                    <td class="px-6 py-6">
+                        <div class="font-bold text-slate-700">${item.product}</div>
+                        <div class="text-[10px] text-slate-400 font-medium">單價：$${item.price}</div>
+                    </td>
+                    <td class="px-6 py-6">
+                        <span class="font-medium text-slate-600">x ${item.quantity}</span>
+                    </td>
+                    <td class="px-6 py-6 text-right">
+                        <span class="text-lg font-bold text-blue-600">$${item.total.toLocaleString()}</span>
+                    </td>
+                    <td class="px-8 py-6 text-center">
+                        <button onclick="deleteRecord('${item.id}')" class="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-90">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
                         </button>
                     </td>
                 `;
                 list.appendChild(row);
             });
 
-            document.getElementById('grandTotal').textContent = `$${total}`;
+            document.getElementById('grandTotalDisplay').textContent = `$${totalRevenue.toLocaleString()}`;
         }
 
-        function saveData() {
-            localStorage.setItem('transactions', JSON.stringify(transactions));
-        }
+        function saveData() { localStorage.setItem('transactions', JSON.stringify(transactions)); }
 
         function showToast(msg) {
             const toast = document.getElementById('toast');
-            toast.textContent = msg;
-            toast.classList.remove('translate-y-20', 'opacity-0');
-            toast.classList.add('translate-y-0', 'opacity-100');
-            
-            setTimeout(() => {
-                toast.classList.add('translate-y-20', 'opacity-0');
-                toast.classList.remove('translate-y-0', 'opacity-100');
-            }, 3000);
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('translate-y-12', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-12', 'opacity-0'), 3000);
         }
     </script>
 </body>
