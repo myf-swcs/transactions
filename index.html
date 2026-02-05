@@ -8,23 +8,13 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; }
-        .loading-spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen p-4 md:p-8">
     <div class="max-w-4xl mx-auto">
         <header class="mb-8 text-center">
             <h1 class="text-3xl font-bold text-gray-800">交易記錄管理</h1>
-            <p class="text-gray-600 mt-2">輸入資料後將自動同步至系統</p>
+            <p class="text-gray-600 mt-2">同步更新至 Google Sheets (支援刪除標記)</p>
         </header>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -49,13 +39,13 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">數量</label>
                         <select id="quantity" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                            <!-- 產生 1-50 的選項 -->
+                            <!-- JS will populate options 1-50 -->
                         </select>
                     </div>
 
                     <div class="pt-4">
-                        <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 flex justify-center items-center gap-2">
-                            <span>新增記錄</span>
+                        <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+                            新增記錄
                         </button>
                     </div>
                 </form>
@@ -65,7 +55,7 @@
             <div class="md:col-span-2 bg-white p-6 rounded-xl shadow-md">
                 <div class="flex justify-between items-center mb-4 border-b pb-2">
                     <h2 class="text-xl font-semibold text-gray-700">歷史記錄</h2>
-                    <span id="syncStatus" class="text-xs text-gray-400">等待輸入...</span>
+                    <span id="syncStatus" class="text-xs text-gray-400">尚未連線</span>
                 </div>
                 
                 <div class="overflow-x-auto">
@@ -80,46 +70,39 @@
                             </tr>
                         </thead>
                         <tbody id="recordList" class="text-gray-700">
-                            <!-- 動態插入記錄 -->
+                            <!-- Rows added dynamically -->
                         </tbody>
                         <tfoot>
                             <tr class="font-bold bg-gray-50">
-                                <td colspan="3" class="px-2 py-3 text-right">總計金額：</td>
+                                <td colspan="3" class="px-2 py-3 text-right">當前頁面總計：</td>
                                 <td colspan="2" class="px-2 py-3 text-blue-600" id="grandTotal">$0</td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
-                <div id="emptyState" class="text-center py-10 text-gray-400 hidden">
-                    目前尚無交易記錄
-                </div>
             </div>
         </div>
     </div>
 
-    <!-- 訊息提示 -->
+    <!-- Toast Notifications -->
     <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 transition-transform duration-300 opacity-0 pointer-events-none">
         提示訊息
     </div>
 
     <script>
-        /**
-         * Google Sheet 連結設定
-         * 已填入您的 Google Apps Script 部署 URL
-         */
+        // API URL
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqAwQj-2MHcMFImO6IbSC7NGL_TEmsSfGoEHj-SvPNsUX-SnirFihFFywRSnOoxBD8ng/exec';
 
+        // Local State
         let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
 
-        // 初始化頁面
+        // Initial setup
         window.onload = () => {
-            // 設定今日日期
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('date').value = today;
 
-            // 填充數量下拉選單 (1-20)
             const qtySelect = document.getElementById('quantity');
-            for (let i = 1; i <= 20; i++) {
+            for (let i = 1; i <= 50; i++) {
                 const opt = document.createElement('option');
                 opt.value = i;
                 opt.textContent = i;
@@ -129,7 +112,7 @@
             renderRecords();
         };
 
-        // 提交表單
+        // Form Submission
         document.getElementById('transactionForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -139,41 +122,74 @@
             const qty = parseInt(document.getElementById('quantity').value);
 
             const newRecord = {
-                id: Date.now(),
+                id: "ID-" + Date.now(), // Unique ID for finding row in sheet
                 date: document.getElementById('date').value,
                 product: productSelect.value,
                 quantity: qty,
                 price: price,
-                total: price * qty
+                total: price * qty,
+                status: 'active'
             };
 
-            // 1. 先存入本地
+            // Update Local
             transactions.unshift(newRecord);
-            saveToLocal();
+            saveData();
             renderRecords();
-            showToast('記錄已新增並嘗試同步...');
+            showToast('已新增並同步中...');
 
-            // 2. 嘗試同步到 Google Sheets
-            if (GOOGLE_SCRIPT_URL) {
-                syncToGoogleSheets(newRecord);
-            }
+            // Sync to Sheet
+            syncData(newRecord);
         });
 
-        // 渲染記錄列表
+        // Delete Logic
+        function deleteRecord(id) {
+            const index = transactions.findIndex(t => t.id === id);
+            if (index === -1) return;
+
+            if (confirm('確定要刪除此記錄嗎？這將會在 Google Sheet 同步標記為 del。')) {
+                const itemToDelete = { ...transactions[index], status: 'del' };
+                
+                // Update Local UI immediately
+                transactions.splice(index, 1);
+                saveData();
+                renderRecords();
+                
+                showToast('正在同步刪除標記...');
+                syncData(itemToDelete);
+            }
+        }
+
+        // Sync Function
+        async function syncData(payload) {
+            const statusEl = document.getElementById('syncStatus');
+            statusEl.textContent = '正在同步...';
+            statusEl.className = 'text-xs text-blue-500';
+
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                statusEl.textContent = '最後同步於 ' + new Date().toLocaleTimeString();
+                statusEl.className = 'text-xs text-green-500';
+            } catch (error) {
+                console.error('Sync error:', error);
+                statusEl.textContent = '同步失敗';
+                statusEl.className = 'text-xs text-red-500';
+            }
+        }
+
+        // Helpers
         function renderRecords() {
             const list = document.getElementById('recordList');
-            const emptyState = document.getElementById('emptyState');
             list.innerHTML = '';
-            
-            if (transactions.length === 0) {
-                emptyState.classList.remove('hidden');
-            } else {
-                emptyState.classList.add('hidden');
-            }
+            let total = 0;
 
-            let totalSum = 0;
             transactions.forEach(item => {
-                totalSum += item.total;
+                total += item.total;
                 const row = document.createElement('tr');
                 row.className = 'border-b hover:bg-gray-50 transition-colors';
                 row.innerHTML = `
@@ -182,30 +198,18 @@
                     <td class="px-2 py-4">${item.quantity}</td>
                     <td class="px-2 py-4 font-semibold text-blue-600">$${item.total}</td>
                     <td class="px-2 py-4 text-right">
-                        <button onclick="deleteRecord(${item.id})" class="text-red-500 hover:text-red-700 p-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                        <button onclick="deleteRecord('${item.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium">
+                            刪除
                         </button>
                     </td>
                 `;
                 list.appendChild(row);
             });
 
-            document.getElementById('grandTotal').textContent = `$${totalSum}`;
+            document.getElementById('grandTotal').textContent = `$${total}`;
         }
 
-        // 刪除記錄
-        function deleteRecord(id) {
-            if (confirm('確定要刪除此筆本地記錄嗎？(注意：此動作不會刪除 Google Sheet 上的資料)')) {
-                transactions = transactions.filter(t => t.id !== id);
-                saveToLocal();
-                renderRecords();
-                showToast('本地記錄已刪除');
-            }
-        }
-
-        function saveToLocal() {
+        function saveData() {
             localStorage.setItem('transactions', JSON.stringify(transactions));
         }
 
@@ -219,33 +223,6 @@
                 toast.classList.add('translate-y-20', 'opacity-0');
                 toast.classList.remove('translate-y-0', 'opacity-100');
             }, 3000);
-        }
-
-        /**
-         * 同步至 Google Sheets 的邏輯
-         */
-        async function syncToGoogleSheets(data) {
-            const status = document.getElementById('syncStatus');
-            status.textContent = '正在同步...';
-            status.className = 'text-xs text-blue-500';
-            
-            try {
-                // 使用 Google Apps Script 的 POST 接口
-                // 由於 CORS 限制，通常使用 no-cors 模式發送
-                await fetch(GOOGLE_SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                status.textContent = '最後同步：' + new Date().toLocaleTimeString();
-                status.className = 'text-xs text-green-500';
-            } catch (error) {
-                console.error('同步失敗:', error);
-                status.textContent = '同步失敗，請檢查 API 設定';
-                status.className = 'text-xs text-red-500';
-            }
         }
     </script>
 </body>
